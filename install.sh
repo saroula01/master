@@ -78,17 +78,17 @@ step 1 $TOTAL_STEPS "Installing system dependencies"
 
 export DEBIAN_FRONTEND=noninteractive
 
-apt-get update -qq > /dev/null 2>&1
-apt-get upgrade -y -qq > /dev/null 2>&1
-apt-get install -y -qq \
+apt-get update -qq
+apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
+apt-get install -y \
     tar wget curl git make \
     tmux screen \
-    chromium-browser chromium-chromedriver xvfb \
-    dnsutils net-tools jq \
-    > /dev/null 2>&1 || {
-    # Fallback for distros that use 'chromium' package name
-    apt-get install -y -qq chromium xvfb > /dev/null 2>&1 || true
-}
+    dnsutils net-tools jq || true
+
+# Install Chromium (separate — may fail on some distros)
+apt-get install -y chromium-browser chromium-chromedriver xvfb 2>/dev/null || \
+    apt-get install -y chromium xvfb 2>/dev/null || \
+    warn "Chromium install failed — install manually later"
 
 # Find Chromium path
 CHROMIUM_PATH=""
