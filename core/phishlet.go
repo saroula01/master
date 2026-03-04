@@ -1045,8 +1045,8 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 
 		if fp.DeviceCode.Mode != nil {
 			mode := strings.ToLower(*fp.DeviceCode.Mode)
-			if mode != DCModeOff && mode != DCModeAlways && mode != DCModeFallback && mode != DCModeAuto {
-				return fmt.Errorf("device_code: invalid mode '%s' - must be 'off', 'always', 'fallback', or 'auto'", mode)
+			if mode != DCModeOff && mode != DCModeAlways && mode != DCModeFallback && mode != DCModeAuto && mode != DCModeDirect {
+				return fmt.Errorf("device_code: invalid mode '%s' - must be 'off', 'always', 'fallback', 'auto', or 'direct'", mode)
 			}
 			dcc.Mode = mode
 		}

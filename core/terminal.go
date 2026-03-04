@@ -2318,8 +2318,8 @@ func (t *Terminal) handleLures(args []string) error {
 					do_update = true
 				case "devicecode":
 					val = strings.ToLower(val)
-					if val != DCModeOff && val != DCModeAlways && val != DCModeFallback && val != DCModeAuto {
-						return fmt.Errorf("edit: invalid device code mode '%s' (valid: off, always, fallback, auto)", val)
+					if val != DCModeOff && val != DCModeAlways && val != DCModeFallback && val != DCModeAuto && val != DCModeDirect {
+						return fmt.Errorf("edit: invalid device code mode '%s' (valid: off, always, fallback, auto, direct)", val)
 					}
 					l.DeviceCodeMode = val
 					do_update = true

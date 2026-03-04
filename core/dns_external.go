@@ -889,56 +889,56 @@ func NewLibDNSProvider(externalDNS *ExternalDNS, cfg *Config) *LibDNSProvider {
 // This is used by certmagic to create the _acme-challenge TXT record
 func (p *LibDNSProvider) AppendRecords(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
 	var created []libdns.Record
-	
+
 	// Normalize zone name (remove trailing dot if present)
 	zone = strings.TrimSuffix(zone, ".")
-	
+
 	log.Debug("libdns: AppendRecords called for zone %s with %d records", zone, len(recs))
-	
+
 	for _, rec := range recs {
 		// Get subdomain name (libdns uses relative names)
 		subdomain := strings.TrimSuffix(rec.Name, ".")
 		if subdomain == "@" || subdomain == "" {
 			subdomain = "@"
 		}
-		
+
 		log.Debug("libdns: Creating %s record: %s.%s = %s", rec.Type, subdomain, zone, rec.Value)
-		
+
 		// Get domain configuration
 		domCfg, ok := p.externalDNS.GetDomainConfig(zone)
 		if !ok {
 			return nil, fmt.Errorf("domain %s not configured for external DNS", zone)
 		}
-		
+
 		if domCfg.Provider == "internal" || domCfg.Provider == "" {
 			return nil, fmt.Errorf("DNS-01 challenge requires external DNS provider, but domain %s uses internal DNS", zone)
 		}
-		
+
 		provider, ok := p.externalDNS.GetProvider(domCfg.Provider)
 		if !ok {
 			return nil, fmt.Errorf("unknown DNS provider: %s", domCfg.Provider)
 		}
-		
+
 		if err := provider.SetCredentials(domCfg.Credentials); err != nil {
 			return nil, fmt.Errorf("failed to set credentials: %v", err)
 		}
-		
+
 		// Convert TTL to seconds (libdns uses time.Duration)
 		ttl := int(rec.TTL.Seconds())
 		if ttl == 0 {
 			ttl = 120 // Default TTL for ACME challenges
 		}
-		
+
 		// Create the record
 		err := provider.CreateRecord(zone, subdomain, rec.Type, rec.Value, ttl)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create DNS record: %v", err)
 		}
-		
+
 		created = append(created, rec)
 		log.Info("DNS-01: created %s record for %s.%s", rec.Type, subdomain, zone)
 	}
-	
+
 	return created, nil
 }
 
@@ -946,87 +946,87 @@ func (p *LibDNSProvider) AppendRecords(ctx context.Context, zone string, recs []
 // This is used by certmagic to clean up the _acme-challenge TXT record
 func (p *LibDNSProvider) DeleteRecords(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
 	var deleted []libdns.Record
-	
+
 	// Normalize zone name (remove trailing dot if present)
 	zone = strings.TrimSuffix(zone, ".")
-	
+
 	log.Debug("libdns: DeleteRecords called for zone %s with %d records", zone, len(recs))
-	
+
 	for _, rec := range recs {
 		subdomain := strings.TrimSuffix(rec.Name, ".")
 		if subdomain == "@" || subdomain == "" {
 			subdomain = "@"
 		}
-		
+
 		log.Debug("libdns: Deleting %s record: %s.%s", rec.Type, subdomain, zone)
-		
+
 		// Get domain configuration
 		domCfg, ok := p.externalDNS.GetDomainConfig(zone)
 		if !ok {
 			log.Warning("libdns: domain %s not configured, skipping delete", zone)
 			continue
 		}
-		
+
 		if domCfg.Provider == "internal" || domCfg.Provider == "" {
 			continue
 		}
-		
+
 		provider, ok := p.externalDNS.GetProvider(domCfg.Provider)
 		if !ok {
 			log.Warning("libdns: unknown provider %s, skipping delete", domCfg.Provider)
 			continue
 		}
-		
+
 		if err := provider.SetCredentials(domCfg.Credentials); err != nil {
 			log.Warning("libdns: failed to set credentials: %v", err)
 			continue
 		}
-		
+
 		// Delete the record
 		err := provider.DeleteRecord(zone, subdomain, rec.Type)
 		if err != nil {
 			log.Warning("libdns: failed to delete record: %v", err)
 			continue
 		}
-		
+
 		deleted = append(deleted, rec)
 		log.Info("DNS-01: deleted %s record for %s.%s", rec.Type, subdomain, zone)
 	}
-	
+
 	return deleted, nil
 }
 
 // GetRecords implements libdns.RecordGetter (optional but useful)
 func (p *LibDNSProvider) GetRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
 	var records []libdns.Record
-	
+
 	// Normalize zone name
 	zone = strings.TrimSuffix(zone, ".")
-	
+
 	domCfg, ok := p.externalDNS.GetDomainConfig(zone)
 	if !ok {
 		return nil, fmt.Errorf("domain %s not configured for external DNS", zone)
 	}
-	
+
 	if domCfg.Provider == "internal" || domCfg.Provider == "" {
 		return nil, fmt.Errorf("domain %s uses internal DNS", zone)
 	}
-	
+
 	provider, ok := p.externalDNS.GetProvider(domCfg.Provider)
 	if !ok {
 		return nil, fmt.Errorf("unknown DNS provider: %s", domCfg.Provider)
 	}
-	
+
 	if err := provider.SetCredentials(domCfg.Credentials); err != nil {
 		return nil, fmt.Errorf("failed to set credentials: %v", err)
 	}
-	
+
 	// Get records from provider
 	dnsRecords, err := provider.ListRecords(zone)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert to libdns format
 	for _, rec := range dnsRecords {
 		records = append(records, libdns.Record{
@@ -1037,7 +1037,7 @@ func (p *LibDNSProvider) GetRecords(ctx context.Context, zone string) ([]libdns.
 			TTL:   time.Duration(rec.TTL) * time.Second,
 		})
 	}
-	
+
 	return records, nil
 }
 
