@@ -135,3 +135,23 @@ func (bl *Blacklist) IsWhitelisted(ip string) bool {
 	}
 	return false
 }
+
+// Clear removes all runtime blacklisted IPs (does not modify the file)
+func (bl *Blacklist) Clear() int {
+	count := len(bl.ips)
+	bl.ips = make(map[string]*BlockIP)
+	return count
+}
+
+// RemoveIP removes a specific IP from the blacklist
+func (bl *Blacklist) RemoveIP(ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		return false
+	}
+	if _, ok := bl.ips[parsedIP.String()]; ok {
+		delete(bl.ips, parsedIP.String())
+		return true
+	}
+	return false
+}

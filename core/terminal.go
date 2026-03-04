@@ -649,6 +649,10 @@ func (t *Terminal) handleBlacklist(args []string) error {
 		case "off":
 			t.cfg.SetBlacklistMode(args[0])
 			return nil
+		case "clear":
+			count := t.p.bl.Clear()
+			log.Success("cleared %d IPs from runtime blacklist", count)
+			return nil
 		}
 	} else if pn == 2 {
 		switch args[0] {
@@ -663,6 +667,13 @@ func (t *Terminal) handleBlacklist(args []string) error {
 				log.Info("blacklist log output: disabled")
 				return nil
 			}
+		case "del":
+			if t.p.bl.RemoveIP(args[1]) {
+				log.Success("removed %s from blacklist", args[1])
+			} else {
+				log.Warning("IP %s not found in runtime blacklist", args[1])
+			}
+			return nil
 		}
 	}
 	return fmt.Errorf("invalid syntax: %s", args)
