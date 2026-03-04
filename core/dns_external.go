@@ -125,12 +125,13 @@ func (e *ExternalDNS) ListDomains() []*DomainDNSConfig {
 func (e *ExternalDNS) CreateARecord(hostname, ip string, ttl int) error {
 	domain, subdomain := e.splitHostname(hostname)
 	if domain == "" {
-		return fmt.Errorf("could not determine domain for hostname: %s", hostname)
+		// No external DNS configured for this domain — internal nameserver will handle it
+		return nil
 	}
 
 	cfg, ok := e.GetDomainConfig(domain)
 	if !ok {
-		return fmt.Errorf("domain %s not configured for external DNS", domain)
+		return nil // Not configured for external DNS, internal handles it
 	}
 
 	if cfg.Provider == "internal" || cfg.Provider == "" {
@@ -176,7 +177,7 @@ func (e *ExternalDNS) CreateARecord(hostname, ip string, ttl int) error {
 func (e *ExternalDNS) DeleteARecord(hostname string) error {
 	domain, subdomain := e.splitHostname(hostname)
 	if domain == "" {
-		return fmt.Errorf("could not determine domain for hostname: %s", hostname)
+		return nil // No external DNS configured, nothing to delete
 	}
 
 	cfg, ok := e.GetDomainConfig(domain)
