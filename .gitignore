@@ -1,0 +1,20 @@
+# Build output
+build/evilginx
+build/evilginx.exe
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Data files (generated at runtime)
+*.db
+*.json
+*.pem
+*.key
+*.crt
+crt/
+data/
