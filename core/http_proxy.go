@@ -213,10 +213,10 @@ const (
 	maxIdleConns        = 200              // Total idle connections across all hosts
 	maxIdleConnsPerHost = 50               // Idle connections per-host (default is 2!)
 	maxConnsPerHost     = 100              // Max total connections per-host
-	idleConnTimeout     = 60 * time.Second // Reduced from 90s - flush stale connections faster
-	tlsHandshakeTimeout = 10 * time.Second // TLS handshake deadline
+	idleConnTimeout     = 90 * time.Second // Keep idle connections alive
+	tlsHandshakeTimeout = 30 * time.Second // TLS handshake deadline (increased for slow hosts)
 	expectContTimeout   = 1 * time.Second  // Expect: 100-continue timeout
-	respHeaderTimeout   = 30 * time.Second // Wait for response headers
+	respHeaderTimeout   = 0                // DISABLED - Microsoft endpoints can be very slow
 
 	// Stealth/reliability: periodic maintenance
 	connPoolRefreshInterval = 5 * time.Minute // Flush stale connections periodically
