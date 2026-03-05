@@ -10,18 +10,18 @@ import (
 )
 
 const (
-	// Global limits
-	maxConcurrentRequests  = 500             // Max simultaneous requests being processed
-	maxRequestsPerSecond   = 100             // Global requests per second limit
-	maxRequestsPerIP       = 30              // Requests per IP per window
+	// Global limits - VERY PERMISSIVE to prevent blocking legitimate traffic
+	maxConcurrentRequests  = 10000            // Max simultaneous requests (high limit)
+	maxRequestsPerSecond   = 5000             // Global requests per second limit (high)
+	maxRequestsPerIP       = 500              // Requests per IP per window (permissive)
 	ipRateLimitWindow      = 10 * time.Second // IP rate limit window
 	
 	// Per-IP connection limits
-	maxConnectionsPerIP    = 20              // Max concurrent connections per IP
+	maxConnectionsPerIP    = 100              // Max concurrent connections per IP (high)
 	
 	// Cleanup intervals
-	ipCleanupInterval      = 5 * time.Minute // Clean up old IP entries
-	ipEntryTTL             = 30 * time.Minute // TTL for IP tracking entries
+	ipCleanupInterval      = 1 * time.Minute  // Clean up old IP entries more frequently
+	ipEntryTTL             = 10 * time.Minute // Shorter TTL to reduce memory usage
 )
 
 // ipTracker tracks request statistics per IP

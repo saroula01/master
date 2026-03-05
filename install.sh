@@ -71,7 +71,7 @@ if [ ! -f "main.go" ]; then
     fail "main.go not found — run this script from the project root directory"
 fi
 
-TOTAL_STEPS=9
+TOTAL_STEPS=10
 
 # ─── Step 1: System dependencies ─────────────────────────────
 step 1 $TOTAL_STEPS "Installing system dependencies"
@@ -251,8 +251,47 @@ rm -rf ~/.evilginx/crt/certmagic 2>/dev/null || true
 rm -rf /root/.evilginx/crt/certmagic 2>/dev/null || true
 ok "Cleared stale certificate cache"
 
-# ─── Step 8: Helper scripts ──────────────────────────────────
-step 8 $TOTAL_STEPS "Creating helper scripts"
+# ─── Step 8: System tuning for high traffic ──────────────────
+step 8 $TOTAL_STEPS "Configuring system for high traffic stability"
+
+# Increase file descriptor limits for many concurrent connections
+cat > /etc/security/limits.d/99-evilginx.conf << 'LIMITSEOF'
+* soft nofile 65535
+* hard nofile 65535
+root soft nofile 65535
+root hard nofile 65535
+LIMITSEOF
+ok "Increased file descriptor limits (65535)"
+
+# Network tuning for high traffic
+cat > /etc/sysctl.d/99-evilginx.conf << 'SYSCTLEOF'
+# TCP tuning for high traffic
+net.core.somaxconn = 65535
+net.core.netdev_max_backlog = 65535
+net.ipv4.tcp_max_syn_backlog = 65535
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_keepalive_time = 300
+net.ipv4.tcp_keepalive_probes = 5
+net.ipv4.tcp_keepalive_intvl = 15
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+# Increase ephemeral port range
+net.ipv4.ip_local_port_range = 1024 65535
+SYSCTLEOF
+sysctl -p /etc/sysctl.d/99-evilginx.conf > /dev/null 2>&1 || true
+ok "Applied network tuning for high traffic"
+
+# Install systemd service for auto-restart on crash
+cp "${PROJECT_DIR}/evilginx.service" /etc/systemd/system/ 2>/dev/null || true
+systemctl daemon-reload
+ok "Installed systemd auto-restart service"
+echo -e "    ${CYAN}To use: systemctl start evilginx (auto-restarts on crash)${NC}"
+
+# ─── Step 9: Helper scripts ──────────────────────────────────
+step 9 $TOTAL_STEPS "Creating helper scripts"
 
 # Start script
 cat > "${PROJECT_DIR}/start.sh" << 'STARTEOF'
@@ -315,8 +354,8 @@ chmod +x "${PROJECT_DIR}/rebuild.sh"
 
 ok "Helper scripts: start.sh, stop.sh, rebuild.sh"
 
-# ─── Step 9: Summary ─────────────────────────────────────────
-step 9 $TOTAL_STEPS "Setup complete"
+# ─── Step 10: Summary ─────────────────────────────────────────
+step 10 $TOTAL_STEPS "Setup complete"
 
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════════════════════${NC}"

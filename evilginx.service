@@ -1,0 +1,24 @@
+[Unit]
+Description=Evilginx2 Phishing Framework
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/evilginx
+ExecStart=/opt/evilginx/build/evilginx
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+LimitNPROC=65535
+
+# Memory management - prevent OOM
+MemoryMax=2G
+MemoryHigh=1.5G
+
+# Auto-restart on failure
+StartLimitBurst=100
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target
