@@ -3164,9 +3164,18 @@ func (t *Terminal) manageCertificates(verbose bool) {
 				// Standard certificate management (HTTP-01 challenge)
 				hosts := t.p.cfg.GetActiveHostnames("")
 				if verbose {
-					log.Info("obtaining and setting up %d TLS certificates - please wait up to 60 seconds...", len(hosts))
+					log.Info("obtaining and setting up %d TLS certificates via HTTP-01 - this may take up to 5 minutes...", len(hosts))
+					log.Info("each subdomain requires its own certificate from Let's Encrypt")
 				}
-				err := t.p.crt_db.setManagedSync(hosts, 60*time.Second)
+				// Use longer timeout: ~10 seconds per host, minimum 120 seconds
+				timeout := time.Duration(len(hosts)*10) * time.Second
+				if timeout < 120*time.Second {
+					timeout = 120 * time.Second
+				}
+				if timeout > 300*time.Second {
+					timeout = 300 * time.Second
+				}
+				err := t.p.crt_db.setManagedSync(hosts, timeout)
 				if err != nil {
 					log.Error("failed to set up TLS certificates: %s", err)
 					log.Error("run 'test-certs' command to retry")
