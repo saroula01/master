@@ -447,9 +447,7 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 					continue
 				}
 				params[k] = v
-				if _, ok := prequired[k]; ok {
-					delete(prequired, k)
-				}
+				delete(prequired, k)
 			}
 			if len(prequired) > 0 {
 				return fmt.Errorf("missing custom parameter values during initalization: %v", prequired)
@@ -768,7 +766,7 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 			check_host = h.orig_subdomain + "."
 		}
 		check_host += h.domain
-		if strings.ToLower(check_host) == strings.ToLower(p.login.domain) {
+		if strings.EqualFold(check_host, p.login.domain) {
 			login_domain_ok = true
 			break
 		}

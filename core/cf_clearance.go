@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -343,7 +342,7 @@ func (m *CfClearanceManager) getCookiesViaRawCDP(debugURL, targetURL string) ([]
 	}
 
 	// Read response (with timeout)
-	conn.(net.Conn).SetReadDeadline(time.Now().Add(5 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	data, _, err := wsutil.ReadServerData(conn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CDP response: %v", err)

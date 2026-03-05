@@ -47,7 +47,7 @@ func (o *GoPhish) Test() error {
 	}
 
 	var reqUrl url.URL = *o.AdminUrl
-	reqUrl.Path = fmt.Sprintf("/api/campaigns")
+	reqUrl.Path = "/api/campaigns"
 	return o.apiRequest(reqUrl.String(), nil)
 }
 
