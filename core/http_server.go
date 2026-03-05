@@ -4,11 +4,12 @@ import (
 	"context"
 	"sync"
 
+	"net/http"
+	"time"
+
 	"github.com/caddyserver/certmagic"
 	"github.com/gorilla/mux"
 	"github.com/mholt/acmez/acme"
-	"net/http"
-	"time"
 
 	"github.com/kgretzky/evilginx2/log"
 )
