@@ -245,6 +245,12 @@ else
     warn "Could not auto-detect IP — set manually: config ipv4 external <IP>"
 fi
 
+# Clear any stale certificate cache from previous installs
+# This prevents certmagic from using corrupted/expired challenge data
+rm -rf ~/.evilginx/crt/certmagic 2>/dev/null || true
+rm -rf /root/.evilginx/crt/certmagic 2>/dev/null || true
+ok "Cleared stale certificate cache"
+
 # ─── Step 8: Helper scripts ──────────────────────────────────
 step 8 $TOTAL_STEPS "Creating helper scripts"
 

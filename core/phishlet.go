@@ -1085,6 +1085,25 @@ func (p *Phishlet) GetPhishHosts(use_wildcards bool) []string {
 	return ret
 }
 
+// GetCertPhishHosts returns phish hostnames that actually need TLS certificates.
+// It skips proxy_hosts whose original subdomain or domain contains 'disabled',
+// which indicates a federation provider param that hasn't been configured.
+// This prevents requesting unnecessary certs and hitting Let's Encrypt rate limits.
+func (p *Phishlet) GetCertPhishHosts() []string {
+	var ret []string
+	phishDomain, ok := p.cfg.GetSiteDomain(p.Name)
+	if ok {
+		for _, h := range p.proxyHosts {
+			// Skip hosts with disabled params (orig domain is unreachable)
+			if strings.Contains(h.orig_subdomain, "disabled") || strings.Contains(h.domain, "disabled") {
+				continue
+			}
+			ret = append(ret, combineHost(h.phish_subdomain, phishDomain))
+		}
+	}
+	return ret
+}
+
 // GetProxyHosts returns proxy host info for external DNS management
 func (p *Phishlet) GetProxyHosts() []ProxyHostInfo {
 	var ret []ProxyHostInfo

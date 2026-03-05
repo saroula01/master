@@ -777,6 +777,35 @@ func (c *Config) GetActiveHostnames(site string) []string {
 	return ret
 }
 
+// GetActiveCertHostnames returns hostnames that need TLS certificates.
+// Unlike GetActiveHostnames, this skips proxy_hosts with disabled federation
+// provider params (whose original domains are unreachable), avoiding
+// unnecessary Let's Encrypt certificate requests and rate limit hits.
+func (c *Config) GetActiveCertHostnames(site string) []string {
+	var ret []string
+	sites := c.GetEnabledSites()
+	for _, _site := range sites {
+		if site == "" || _site == site {
+			pl, err := c.GetPhishlet(_site)
+			if err != nil {
+				continue
+			}
+			for _, host := range pl.GetCertPhishHosts() {
+				ret = append(ret, strings.ToLower(host))
+			}
+		}
+	}
+	for _, l := range c.lures {
+		if site == "" || l.Phishlet == site {
+			if l.Hostname != "" {
+				hostname := strings.ToLower(l.Hostname)
+				ret = append(ret, hostname)
+			}
+		}
+	}
+	return ret
+}
+
 func (c *Config) IsActiveHostname(host string) bool {
 	host = strings.ToLower(host)
 	if host[len(host)-1:] == "." {

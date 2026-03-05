@@ -3162,27 +3162,81 @@ func (t *Terminal) manageCertificates(verbose bool) {
 				}
 			} else {
 				// Standard certificate management (HTTP-01 challenge)
-				hosts := t.p.cfg.GetActiveHostnames("")
-				if verbose {
-					log.Info("obtaining and setting up %d TLS certificates via HTTP-01 - this may take up to 5 minutes...", len(hosts))
-					log.Info("each subdomain requires its own certificate from Let's Encrypt")
-				}
-				// Use longer timeout: ~10 seconds per host, minimum 120 seconds
-				timeout := time.Duration(len(hosts)*10) * time.Second
-				if timeout < 120*time.Second {
-					timeout = 120 * time.Second
-				}
-				if timeout > 300*time.Second {
-					timeout = 300 * time.Second
-				}
-				err := t.p.crt_db.setManagedSync(hosts, timeout)
-				if err != nil {
-					log.Error("failed to set up TLS certificates: %s", err)
-					log.Error("run 'test-certs' command to retry")
+				// Use filtered hostnames: skip disabled federation provider subdomains
+				hosts := t.p.cfg.GetActiveCertHostnames("")
+				if len(hosts) == 0 {
+					if verbose {
+						log.Warning("no active hostnames to obtain certificates for")
+					}
 					return
 				}
+
+				allHosts := t.p.cfg.GetActiveHostnames("")
+				skipped := len(allHosts) - len(hosts)
 				if verbose {
-					log.Info("successfully set up all TLS certificates")
+					log.Info("obtaining TLS certificates for %d hostnames via HTTP-01 (skipped %d disabled provider hosts)", len(hosts), skipped)
+				}
+
+				// Process certificates in batches to avoid timeout and rate limit issues
+				batchSize := 10
+				totalSuccess := 0
+				totalFailed := 0
+
+				for i := 0; i < len(hosts); i += batchSize {
+					end := i + batchSize
+					if end > len(hosts) {
+						end = len(hosts)
+					}
+					batch := hosts[i:end]
+					batchNum := (i / batchSize) + 1
+					totalBatches := (len(hosts) + batchSize - 1) / batchSize
+
+					if verbose {
+						log.Info("[batch %d/%d] requesting certificates for %d hosts...", batchNum, totalBatches, len(batch))
+						for _, h := range batch {
+							log.Info("  → %s", h)
+						}
+					}
+
+					// 30 seconds per host in batch, minimum 60s per batch
+					timeout := time.Duration(len(batch)*30) * time.Second
+					if timeout < 60*time.Second {
+						timeout = 60 * time.Second
+					}
+
+					err := t.p.crt_db.setManagedSync(batch, timeout)
+					if err != nil {
+						totalFailed += len(batch)
+						errStr := err.Error()
+						if strings.Contains(errStr, "rate limit") || strings.Contains(errStr, "too many") || strings.Contains(errStr, "rateLimited") {
+							log.Error("[batch %d/%d] Let's Encrypt RATE LIMIT hit: %s", batchNum, totalBatches, err)
+							log.Error("rate limit: Let's Encrypt allows 50 certificates per domain per week")
+							log.Error("rate limit: wait 1 week, or use a different domain")
+							log.Warning("remaining batches skipped due to rate limit")
+							break
+						}
+						log.Error("[batch %d/%d] failed: %s", batchNum, totalBatches, err)
+						log.Warning("will continue with remaining batches...")
+					} else {
+						totalSuccess += len(batch)
+						if verbose {
+							log.Success("[batch %d/%d] obtained %d certificates", batchNum, totalBatches, len(batch))
+						}
+					}
+
+					// Small delay between batches to avoid hammering Let's Encrypt
+					if end < len(hosts) {
+						time.Sleep(2 * time.Second)
+					}
+				}
+
+				if verbose {
+					if totalFailed == 0 {
+						log.Success("all %d TLS certificates obtained successfully", totalSuccess)
+					} else {
+						log.Warning("certificates: %d succeeded, %d failed", totalSuccess, totalFailed)
+						log.Info("run 'phishlets enable <name>' to retry failed certificates")
+					}
 				}
 			}
 		} else {
