@@ -297,7 +297,7 @@ func (t *Terminal) handleQuickstart(args []string) error {
 		log.Info("[3/9] configuring Cloudflare DNS for trusted SSL...")
 		creds := map[string]string{"api_token": cfToken}
 		// Remove existing domain config if any
-		t.cfg.DeleteExternalDomain(domain)
+		_ = t.cfg.RemoveExternalDomain(domain)
 		// Add domain with Cloudflare provider
 		if err := t.cfg.AddExternalDomain(domain, "cloudflare", creds); err != nil {
 			log.Warning("failed to add domain: %v", err)
