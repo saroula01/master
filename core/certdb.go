@@ -294,8 +294,8 @@ func (o *CertDb) setWildcardManagedSync(wildcardDomains []string, t time.Duratio
 	certmagic.DefaultACME.DisableTLSALPNChallenge = true
 	certmagic.DefaultACME.DNS01Solver = &certmagic.DNS01Solver{
 		DNSProvider:        o.libdnsProvider,
-		PropagationTimeout: 90 * time.Second,  // Wait up to 90s for DNS propagation
-		TTL:                120 * time.Second, // 2 minute TTL for challenge records
+		PropagationTimeout: 120 * time.Second, // Wait up to 120s for DNS propagation
+		TTL:                60 * time.Second,  // 1 minute TTL for challenge records (faster propagation)
 	}
 
 	// Create fresh config with DNS-01 settings
@@ -306,7 +306,7 @@ func (o *CertDb) setWildcardManagedSync(wildcardDomains []string, t time.Duratio
 
 	log.Info("wildcard TLS: requesting certificates via DNS-01 challenge for %d domains", len(wildcardDomains))
 	for _, dom := range wildcardDomains {
-		log.Debug("wildcard TLS: will request certificate for: %s", dom)
+		log.Info("wildcard TLS: will request certificate for: %s", dom)
 	}
 
 	err := o.magic.ManageSync(ctx, wildcardDomains)

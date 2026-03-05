@@ -3152,10 +3152,10 @@ func (t *Terminal) manageCertificates(verbose bool) {
 				if hasExternalDNS {
 					// Use Let's Encrypt DNS-01 challenge via external DNS provider
 					if verbose {
-						log.Info("obtaining wildcard TLS certificates via DNS-01 challenge for %d domains - this may take up to 120 seconds...", len(wildcardDomains)/2)
+						log.Info("obtaining wildcard TLS certificates via DNS-01 challenge for %d domains - this may take up to 3 minutes...", len(wildcardDomains)/2)
 						log.Info("wildcard certificates prevent phishing hostnames from being exposed in Certificate Transparency logs")
 					}
-					err := t.p.crt_db.setWildcardManagedSync(wildcardDomains, 120*time.Second)
+					err := t.p.crt_db.setWildcardManagedSync(wildcardDomains, 180*time.Second)
 					if err != nil {
 						log.Error("failed to obtain wildcard TLS certificates: %s", err)
 						log.Warning("falling back to self-signed wildcard certificates...")

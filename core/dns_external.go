@@ -391,52 +391,56 @@ func (c *CloudflareDNS) CreateRecord(domain, subdomain, recordType, value string
 }
 
 func (c *CloudflareDNS) DeleteRecord(domain, subdomain, recordType string) error {
-	record, err := c.GetRecord(domain, subdomain, recordType)
-	if err != nil {
-		return err
-	}
-	if record == nil {
-		return nil // Record doesn't exist
-	}
-
-	zoneID, err := c.getZoneID(domain)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("DELETE", fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneID, record.ID), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Success bool `json:"success"`
-		Errors  []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return err
-	}
-
-	if !result.Success {
-		errMsg := "failed to delete record"
-		if len(result.Errors) > 0 {
-			errMsg = result.Errors[0].Message
+	// Delete ALL matching records, not just the first one
+	// This is critical for TXT records which can have multiple values
+	for {
+		record, err := c.GetRecord(domain, subdomain, recordType)
+		if err != nil {
+			return err
 		}
-		return fmt.Errorf("cloudflare: %s", errMsg)
-	}
+		if record == nil {
+			return nil // No more records to delete
+		}
 
-	return nil
+		zoneID, err := c.getZoneID(domain)
+		if err != nil {
+			return err
+		}
+
+		req, err := http.NewRequest("DELETE", fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneID, record.ID), nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+c.apiToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		var result struct {
+			Success bool `json:"success"`
+			Errors  []struct {
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return err
+		}
+
+		if !result.Success {
+			errMsg := "failed to delete record"
+			if len(result.Errors) > 0 {
+				errMsg = result.Errors[0].Message
+			}
+			return fmt.Errorf("cloudflare: %s", errMsg)
+		}
+
+		log.Debug("cloudflare: deleted %s record %s.%s (ID: %s)", recordType, subdomain, domain, record.ID)
+	}
 }
 
 func (c *CloudflareDNS) ListRecords(domain string) ([]DNSRecord, error) {
@@ -699,32 +703,36 @@ func (d *DigitalOceanDNS) CreateRecord(domain, subdomain, recordType, value stri
 }
 
 func (d *DigitalOceanDNS) DeleteRecord(domain, subdomain, recordType string) error {
-	record, err := d.GetRecord(domain, subdomain, recordType)
-	if err != nil {
-		return err
-	}
-	if record == nil {
-		return nil
-	}
+	// Delete ALL matching records, not just the first one
+	// This is critical for TXT records which can have multiple values
+	for {
+		record, err := d.GetRecord(domain, subdomain, recordType)
+		if err != nil {
+			return err
+		}
+		if record == nil {
+			return nil // No more records to delete
+		}
 
-	req, err := http.NewRequest("DELETE", fmt.Sprintf("https://api.digitalocean.com/v2/domains/%s/records/%s", domain, record.ID), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+d.apiToken)
+		req, err := http.NewRequest("DELETE", fmt.Sprintf("https://api.digitalocean.com/v2/domains/%s/records/%s", domain, record.ID), nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+d.apiToken)
 
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+		resp, err := d.client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 && resp.StatusCode != 404 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("digitalocean: failed to delete record: %s", string(bodyBytes))
-	}
+		if resp.StatusCode >= 400 && resp.StatusCode != 404 {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("digitalocean: failed to delete record: %s", string(bodyBytes))
+		}
 
-	return nil
+		log.Debug("digitalocean: deleted %s record %s.%s (ID: %s)", recordType, subdomain, domain, record.ID)
+	}
 }
 
 func (d *DigitalOceanDNS) ListRecords(domain string) ([]DNSRecord, error) {
@@ -923,28 +931,35 @@ func (p *LibDNSProvider) AppendRecords(ctx context.Context, zone string, recs []
 			return nil, fmt.Errorf("failed to set credentials: %v", err)
 		}
 
-		// IMPORTANT: Delete any existing record with the same name FIRST
+		// IMPORTANT: Delete ALL existing records with the same name FIRST
 		// This clears stale _acme-challenge TXT records that cause DNS-01 failures
-		_ = provider.DeleteRecord(zone, subdomain, rec.Type)
-		log.Debug("DNS-01: cleaned up existing %s record for %s.%s (if any)", rec.Type, subdomain, zone)
+		log.Info("DNS-01: cleaning up existing %s records for %s.%s...", rec.Type, subdomain, zone)
+		if err := provider.DeleteRecord(zone, subdomain, rec.Type); err != nil {
+			log.Warning("DNS-01: failed to clean up existing records: %v", err)
+		}
+
+		// Wait for deletion to propagate
+		time.Sleep(2 * time.Second)
 
 		// Convert TTL to seconds (libdns uses time.Duration)
 		ttl := int(rec.TTL.Seconds())
 		if ttl == 0 {
-			ttl = 120 // Default TTL for ACME challenges
+			ttl = 60 // Short TTL for ACME challenges (1 minute)
 		}
 
 		// Create the record
+		log.Info("DNS-01: creating %s record: %s.%s = %s", rec.Type, subdomain, zone, rec.Value)
 		err := provider.CreateRecord(zone, subdomain, rec.Type, rec.Value, ttl)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create DNS record: %v", err)
 		}
 
 		created = append(created, rec)
-		log.Info("DNS-01: created %s record for %s.%s", rec.Type, subdomain, zone)
+		log.Success("DNS-01: created %s record for %s.%s", rec.Type, subdomain, zone)
 
-		// Wait 5 seconds for Cloudflare DNS propagation before next record
-		time.Sleep(5 * time.Second)
+		// Wait for Cloudflare DNS propagation before validation
+		log.Info("DNS-01: waiting 10 seconds for DNS propagation...")
+		time.Sleep(10 * time.Second)
 	}
 
 	return created, nil
