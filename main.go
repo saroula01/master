@@ -176,7 +176,16 @@ func main() {
 	ns, _ := core.NewNameserver(cfg)
 	ns.Start()
 
-	crt_db, err := core.NewCertDb(crt_path, cfg, ns)
+	// Create and start HTTP server on port 80 BEFORE CertDb.
+	// This ensures our server handles ACME HTTP-01 challenges instead of certmagic's internal solver.
+	hs, err := core.NewHttpServer()
+	if err != nil {
+		log.Fatal("http server: %v", err)
+		return
+	}
+	hs.Start()
+
+	crt_db, err := core.NewCertDb(crt_path, cfg, ns, hs)
 	if err != nil {
 		log.Fatal("certdb: %v", err)
 		return

@@ -26,18 +26,20 @@ type CertDb struct {
 	magic          *certmagic.Config
 	cfg            *Config
 	ns             *Nameserver
+	httpServer     *HttpServer
 	caCert         tls.Certificate
 	tlsCache       map[string]*tls.Certificate
 	libdnsProvider *LibDNSProvider
 }
 
-func NewCertDb(cache_dir string, cfg *Config, ns *Nameserver) (*CertDb, error) {
+func NewCertDb(cache_dir string, cfg *Config, ns *Nameserver, httpServer *HttpServer) (*CertDb, error) {
 	os.Setenv("XDG_DATA_HOME", cache_dir)
 
 	o := &CertDb{
 		cache_dir:      cache_dir,
 		cfg:            cfg,
 		ns:             ns,
+		httpServer:     httpServer,
 		tlsCache:       make(map[string]*tls.Certificate),
 		libdnsProvider: NewLibDNSProvider(GetExternalDNS(), cfg),
 	}
@@ -50,7 +52,8 @@ func NewCertDb(cache_dir string, cfg *Config, ns *Nameserver) (*CertDb, error) {
 	certmagic.DefaultACME.Email = o.GetEmail()
 	// Disable TLS-ALPN challenge: port 443 is already bound by our HTTPS proxy,
 	// so certmagic's TLS-ALPN solver cannot bind its own listener.
-	// Force all ACME challenges through HTTP-01 on port 80.
+	// HTTP-01 challenges are handled by our HttpServer on port 80, which integrates
+	// with certmagic's distributed challenge handler via HandleHTTPChallenge().
 	certmagic.DefaultACME.DisableTLSALPNChallenge = true
 
 	err := o.generateCertificates()
@@ -63,6 +66,11 @@ func NewCertDb(cache_dir string, cfg *Config, ns *Nameserver) (*CertDb, error) {
 	}
 
 	o.magic = certmagic.NewDefault()
+
+	// Link our HttpServer with certmagic for challenge handling
+	if httpServer != nil {
+		httpServer.SetMagic(o.magic)
+	}
 
 	return o, nil
 }
