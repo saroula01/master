@@ -280,9 +280,10 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		}
 		c.cfg.Set(CFG_BOTGUARD, c.botguardConfig)
 
-		// Use wildcard self-signed certificates (works with all subdomains)
-		c.general.WildcardTLS = true
-		c.cfg.Set("general.wildcard_tls", true)
+		// Use standard HTTP-01 certificates by default (no Cloudflare needed)
+		// Wildcard TLS only used when external DNS provider is configured
+		c.general.WildcardTLS = false
+		c.cfg.Set("general.wildcard_tls", false)
 	}
 
 	// Initialize external DNS with loaded domains

