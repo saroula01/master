@@ -48,6 +48,10 @@ func NewCertDb(cache_dir string, cfg *Config, ns *Nameserver) (*CertDb, error) {
 
 	certmagic.DefaultACME.Agreed = true
 	certmagic.DefaultACME.Email = o.GetEmail()
+	// Disable TLS-ALPN challenge: port 443 is already bound by our HTTPS proxy,
+	// so certmagic's TLS-ALPN solver cannot bind its own listener.
+	// Force all ACME challenges through HTTP-01 on port 80.
+	certmagic.DefaultACME.DisableTLSALPNChallenge = true
 
 	err := o.generateCertificates()
 	if err != nil {
@@ -280,9 +284,27 @@ func (o *CertDb) getWildcardCertificate(hostname string) *tls.Certificate {
 }
 
 func (o *CertDb) setManagedSync(hosts []string, t time.Duration) error {
+	// Recreate certmagic config to pick up current ACME settings.
+	// TLS-ALPN is disabled globally (port 443 is ours), so only HTTP-01 is used.
+	o.magic = certmagic.NewDefault()
+
+	// Enable on-demand TLS: if ManageSync misses a host (timeout/rate-limit),
+	// certmagic will automatically obtain its cert on the first TLS handshake.
+	o.magic.OnDemand = &certmagic.OnDemandConfig{
+		DecisionFunc: func(ctx context.Context, name string) error {
+			if o.cfg.IsActiveHostname(name) {
+				return nil
+			}
+			return fmt.Errorf("not a managed hostname: %s", name)
+		},
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), t)
 	err := o.magic.ManageSync(ctx, hosts)
 	cancel()
+	if err != nil {
+		log.Warning("cert: ManageSync error (on-demand TLS will obtain remaining certs): %s", err)
+	}
 	return err
 }
 

