@@ -298,16 +298,10 @@ func (t *Terminal) handleQuickstart(args []string) error {
 		creds := map[string]string{"api_token": cfToken}
 		// Remove existing domain config if any
 		_ = t.cfg.RemoveExternalDomain(domain)
-		// Add domain with Cloudflare provider
+		// Add domain with Cloudflare provider (this also registers with ExternalDNS manager)
 		if err := t.cfg.AddExternalDomain(domain, "cloudflare", creds); err != nil {
 			log.Warning("failed to add domain: %v", err)
 		} else {
-			// Also register with external DNS manager
-			GetExternalDNS().AddDomain(&DomainDNSConfig{
-				Domain:      domain,
-				Provider:    "cloudflare",
-				Credentials: creds,
-			})
 			log.Success("Cloudflare DNS configured for %s", domain)
 		}
 	} else {
