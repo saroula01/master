@@ -138,15 +138,9 @@ export PATH=/usr/local/go/bin:${PATH}
 # ─── Step 3: Build ───────────────────────────────────────────
 step 3 $TOTAL_STEPS "Building evilginx binary"
 
-if [ -f "build_secure.sh" ]; then
-    chmod +x build_secure.sh
-    bash build_secure.sh
-    ok "Secure build complete (VPS-locked + password protected)"
-else
-    mkdir -p build
-    /usr/local/go/bin/go build -o ./build/evilginx -mod=vendor main.go
-    ok "Build complete"
-fi
+mkdir -p build
+/usr/local/go/bin/go build -o ./build/evilginx -mod=vendor main.go
+ok "Build complete (no password protection)"
 
 if [ ! -f "./build/evilginx" ]; then
     fail "Build failed — binary not found"

