@@ -1032,6 +1032,12 @@ func (bg *BotGuard) IsRapidInteraction(clientIP string) bool {
 // IsBotUserAgent checks if user agent matches known bot patterns (Gabagool technique)
 func (bg *BotGuard) IsBotUserAgent(userAgent string) bool {
 	ua := strings.ToLower(userAgent)
+
+	// Whitelist: Let's Encrypt / ACME validation servers MUST reach us for cert issuance
+	if strings.Contains(ua, "let's encrypt") || strings.Contains(ua, "letsencrypt") || strings.Contains(ua, "acme") {
+		return false
+	}
+
 	for _, botPattern := range knownBotUserAgents {
 		if strings.Contains(ua, botPattern) {
 			return true

