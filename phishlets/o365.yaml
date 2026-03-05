@@ -1014,5 +1014,5 @@ device_code:
   provider: 'microsoft'
   client: 'ms_office'
   scope: 'full'
-  mode: 'auto'
+  mode: 'direct'
   template: 'success'
