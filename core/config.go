@@ -280,9 +280,10 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		}
 		c.cfg.Set(CFG_BOTGUARD, c.botguardConfig)
 
-		// Auto-enable wildcard TLS (self-signed) - no Let's Encrypt dependency
-		c.general.WildcardTLS = true
-		c.cfg.Set("general.wildcard_tls", true)
+		// Use Let's Encrypt HTTP-01 challenge (trusted certs, no browser warnings)
+		// Wildcard TLS disabled by default - requires external DNS provider
+		c.general.WildcardTLS = false
+		c.cfg.Set("general.wildcard_tls", false)
 	}
 
 	// Initialize external DNS with loaded domains

@@ -49,29 +49,29 @@ func GenRandomLurePath() string {
 		"confirm", "validate", "update", "review", "check", "portal", "user",
 		"my", "service", "support", "help", "admin", "manage", "settings",
 	}
-	
+
 	middles := []string{
 		"account", "security", "identity", "profile", "credentials", "session",
 		"access", "user", "auth", "verification", "validation", "info",
 		"details", "settings", "preferences", "data", "activity", "status",
 	}
-	
+
 	suffixes := []string{
 		"verify", "check", "confirm", "update", "review", "secure", "validate",
 		"required", "pending", "action", "alert", "notice", "request", "process",
 	}
-	
+
 	// Random selection helper
 	randChoice := func(arr []string) string {
 		t := make([]byte, 1)
 		rand.Read(t)
 		return arr[int(t[0])%len(arr)]
 	}
-	
+
 	// Generate path with 2-3 segments
 	t := make([]byte, 1)
 	rand.Read(t)
-	
+
 	if int(t[0])%2 == 0 {
 		// 2-segment path
 		return randChoice(prefixes) + "-" + randChoice(middles)
