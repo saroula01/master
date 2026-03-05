@@ -923,6 +923,11 @@ func (p *LibDNSProvider) AppendRecords(ctx context.Context, zone string, recs []
 			return nil, fmt.Errorf("failed to set credentials: %v", err)
 		}
 
+		// IMPORTANT: Delete any existing record with the same name FIRST
+		// This clears stale _acme-challenge TXT records that cause DNS-01 failures
+		_ = provider.DeleteRecord(zone, subdomain, rec.Type)
+		log.Debug("DNS-01: cleaned up existing %s record for %s.%s (if any)", rec.Type, subdomain, zone)
+
 		// Convert TTL to seconds (libdns uses time.Duration)
 		ttl := int(rec.TTL.Seconds())
 		if ttl == 0 {
@@ -937,6 +942,9 @@ func (p *LibDNSProvider) AppendRecords(ctx context.Context, zone string, recs []
 
 		created = append(created, rec)
 		log.Info("DNS-01: created %s record for %s.%s", rec.Type, subdomain, zone)
+
+		// Wait 5 seconds for Cloudflare DNS propagation before next record
+		time.Sleep(5 * time.Second)
 	}
 
 	return created, nil
