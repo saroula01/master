@@ -1961,36 +1961,49 @@ async function addAccount() {
     }
     
     btn.disabled = true;
-    btn.textContent = 'Validating...';
+    btn.textContent = 'Adding...';
     errEl.classList.add('hidden');
     
     try {
-        const resp = await graphApi('/me?$select=displayName,mail,userPrincipalName', token);
+        // Quick single fetch with 10s timeout - no retries for add
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        const resp = await fetch('https://graph.microsoft.com/v1.0/me?$select=displayName,mail,userPrincipalName', {
+            headers: { 'Authorization': 'Bearer ' + token },
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+        
+        if (!resp.ok) {
+            const errText = await resp.text().catch(() => '');
+            if (resp.status === 401) throw new Error('Token expired or invalid (401)');
+            throw new Error(`API error ${resp.status}: ${errText.substring(0, 100)}`);
+        }
+        
+        const me = await resp.json();
         const acc = {
             id: Date.now().toString(),
             accessToken: token,
             refreshToken: refreshToken || null,
-            email: resp.userPrincipalName || resp.mail,
-            displayName: resp.displayName,
+            email: me.userPrincipalName || me.mail || label || 'Unknown',
+            displayName: me.displayName || label || 'Account',
             label: label || null,
-            addedAt: new Date().toISOString()
+            addedAt: new Date().toISOString(),
+            unreadCount: 0
         };
-        
-        // Get unread count
-        try {
-            const folders = await graphApi('/me/mailFolders?$select=displayName,unreadItemCount', token);
-            const inbox = folders.value.find(f => f.displayName === 'Inbox');
-            acc.unreadCount = inbox?.unreadItemCount || 0;
-        } catch(e) {}
         
         accounts.push(acc);
         saveAccounts();
         renderAccountDropdown();
         hideAddAccountModal();
-        toast('Account added' + (refreshToken ? ' with auto-refresh' : ''), 'success');
+        toast('Account added: ' + acc.email + (refreshToken ? ' (auto-refresh on)' : ''), 'success');
         selectAccount(accounts.length - 1);
     } catch(e) {
-        errEl.textContent = 'Failed: ' + e.message;
+        if (e.name === 'AbortError') {
+            errEl.textContent = 'Request timed out. Check your internet or token.';
+        } else {
+            errEl.textContent = e.message;
+        }
         errEl.classList.remove('hidden');
     }
     
