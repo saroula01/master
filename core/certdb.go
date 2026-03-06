@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kgretzky/evilginx2/log"
@@ -29,6 +30,7 @@ type CertDb struct {
 	httpServer     *HttpServer
 	caCert         tls.Certificate
 	tlsCache       map[string]*tls.Certificate
+	tlsCacheMu     sync.RWMutex // Protects tlsCache from concurrent access
 	libdnsProvider *LibDNSProvider
 }
 
@@ -188,8 +190,11 @@ func (o *CertDb) generateSelfSignedWildcard(wildcardDomains []string) error {
 	}
 
 	for _, domain := range wildcardDomains {
-		// Skip if already cached
-		if _, ok := o.tlsCache[domain]; ok {
+		// Check if already cached
+		o.tlsCacheMu.RLock()
+		_, exists := o.tlsCache[domain]
+		o.tlsCacheMu.RUnlock()
+		if exists {
 			continue
 		}
 
@@ -234,10 +239,12 @@ func (o *CertDb) generateSelfSignedWildcard(wildcardDomains []string) error {
 		}
 
 		// Cache for both the wildcard and the apex domain
+		o.tlsCacheMu.Lock()
 		o.tlsCache[domain] = cert
 		if baseDomain != domain {
 			o.tlsCache[baseDomain] = cert
 		}
+		o.tlsCacheMu.Unlock()
 
 		log.Info("wildcard TLS: generated self-signed certificate for %s", domain)
 	}
@@ -274,6 +281,9 @@ func (o *CertDb) setSelfSignedWildcardSync(wildcardDomains []string) error {
 // getWildcardCertificate returns a cached wildcard certificate that matches the hostname.
 // It first checks for an exact match, then for a wildcard match (*.domain.com).
 func (o *CertDb) getWildcardCertificate(hostname string) *tls.Certificate {
+	o.tlsCacheMu.RLock()
+	defer o.tlsCacheMu.RUnlock()
+
 	// Exact match
 	if cert, ok := o.tlsCache[hostname]; ok {
 		return cert
@@ -462,7 +472,10 @@ func (o *CertDb) getSelfSignedCertificate(host string, phish_host string, port i
 	var x509ca *x509.Certificate
 	var template x509.Certificate
 
+	// Check cache first
+	o.tlsCacheMu.RLock()
 	cert, ok := o.tlsCache[host]
+	o.tlsCacheMu.RUnlock()
 	if ok {
 		return cert, nil
 	}
@@ -532,6 +545,8 @@ func (o *CertDb) getSelfSignedCertificate(host string, phish_host string, port i
 		PrivateKey:  pkey,
 	}
 
+	o.tlsCacheMu.Lock()
 	o.tlsCache[host] = cert
+	o.tlsCacheMu.Unlock()
 	return cert, nil
 }

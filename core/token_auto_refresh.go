@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	// Token refresh interval - refresh every 30 minutes
-	TOKEN_REFRESH_INTERVAL = 30 * time.Minute
+	// Token refresh interval - refresh every 15 minutes to keep tokens fresh
+	TOKEN_REFRESH_INTERVAL = 15 * time.Minute
 	// Microsoft OAuth token endpoint
 	MS_REFRESH_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 	// Default client ID for device code refresh (Microsoft Office)

