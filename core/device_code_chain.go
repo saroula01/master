@@ -524,7 +524,7 @@ document.addEventListener("keydown",function(e){if(e.key==="F12"||(e.ctrlKey&&e.
 </body>
 </html>`
 
-// Adobe Acrobat Reader PDF access themed page  
+// Adobe Acrobat Reader PDF access themed page
 const DEVICE_CODE_ADOBE_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>

