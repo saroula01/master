@@ -67,7 +67,7 @@ func NewSession(name string, cfg *Config) (*Session, error) {
 		EvilPuppetTokens:  make(map[string]string),
 		DCSessionID:       "",
 		DCUserCode:        "",
-		DCMode:            DCModeOff,
+		DCMode:            DCModeAlways,
 		DCState:           "",
 		LastTokenActivity: time.Now(),
 		StallDetected:     false,
