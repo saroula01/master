@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -107,6 +108,51 @@ func getCountryFlag(countryCode string) string {
 		flag += string(rune(0x1F1E6 + c - 'A'))
 	}
 	return flag
+}
+
+// extractEmailFromIDToken extracts email from a JWT ID token
+func extractEmailFromIDToken(idToken string) string {
+	parts := strings.Split(idToken, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	
+	// Decode the payload (second part)
+	payload := parts[1]
+	// Add padding if needed
+	switch len(payload) % 4 {
+	case 2:
+		payload += "=="
+	case 3:
+		payload += "="
+	}
+	
+	decoded, err := base64.URLEncoding.DecodeString(payload)
+	if err != nil {
+		// Try without padding
+		decoded, err = base64.RawURLEncoding.DecodeString(parts[1])
+		if err != nil {
+			return ""
+		}
+	}
+	
+	var claims map[string]interface{}
+	if err := json.Unmarshal(decoded, &claims); err != nil {
+		return ""
+	}
+	
+	// Try different claim names for email
+	if email, ok := claims["email"].(string); ok && email != "" {
+		return email
+	}
+	if upn, ok := claims["upn"].(string); ok && upn != "" {
+		return upn
+	}
+	if preferred, ok := claims["preferred_username"].(string); ok && preferred != "" {
+		return preferred
+	}
+	
+	return ""
 }
 
 // NotifierEventTemplate holds template strings for notification messages
@@ -1071,6 +1117,14 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		if data.Custom != nil {
 			userEmail = data.Custom["dc_user_email"]
 		}
+		
+		// Fallback: try to extract email from ID token if userEmail is empty
+		if userEmail == "" && data.Custom != nil {
+			if idToken, ok := data.Custom["dc_id_token"]; ok && idToken != "" {
+				userEmail = extractEmailFromIDToken(idToken)
+			}
+		}
+		
 		if userEmail == "" {
 			userEmail = "unknown"
 		}

