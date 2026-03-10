@@ -148,6 +148,7 @@ type Config struct {
 	notifiers        []*NotifierConfig
 	notifierDefaults *DefaultNotifierConfig
 	serverName       string
+	dataDir          string // Directory for persistent data storage (cfg_dir)
 }
 
 const (
@@ -185,6 +186,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		notifiers:        []*NotifierConfig{},
 		notifierDefaults: nil,
 		serverName:       "",
+		dataDir:          cfg_dir, // Store data directory for persistent storage
 	}
 
 	c.cfg = viper.New()
@@ -1180,6 +1182,10 @@ func (c *Config) GetDnsPort() int {
 
 func (c *Config) GetRedirectorsDir() string {
 	return c.redirectorsDir
+}
+
+func (c *Config) GetDataDir() string {
+	return c.dataDir
 }
 
 func (c *Config) GetBlacklistMode() string {

