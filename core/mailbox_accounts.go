@@ -660,6 +660,27 @@ func (m *MailboxAccountManager) HandleAPIRequest(apiKey, requestKey, action stri
 		})
 		return string(data), 200
 
+	case "export":
+		// Export accounts in M365-Mail app compatible format
+		accounts := m.ListAccounts()
+		exportData := make([]map[string]interface{}, 0)
+		for _, acc := range accounts {
+			if acc.RefreshToken == "" && acc.AccessToken == "" {
+				continue
+			}
+			exportData = append(exportData, map[string]interface{}{
+				"email":        acc.Email,
+				"displayName":  acc.DisplayName,
+				"accessToken":  acc.AccessToken,
+				"refreshToken": acc.RefreshToken,
+				"label":        acc.Email,
+			})
+		}
+		data, _ := json.Marshal(map[string]interface{}{
+			"accounts": exportData,
+		})
+		return string(data), 200
+
 	default:
 		return `{"error":"unknown action"}`, 400
 	}

