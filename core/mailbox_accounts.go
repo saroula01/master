@@ -671,14 +671,15 @@ func (m *MailboxAccountManager) HandleAPIRequest(apiKey, requestKey, action stri
 		// Export accounts in M365-Mail app compatible format (plain array)
 		accounts := m.ListAccounts()
 		exportData := make([]map[string]interface{}, 0)
-		for _, acc := range accounts {
+		for i, acc := range accounts {
 			if acc.RefreshToken == "" && acc.AccessToken == "" {
 				continue
 			}
-			// Generate a unique ID in the format M365-Mail expects
-			accountID := fmt.Sprintf("%d-%s", time.Now().UnixNano()/1000000, acc.ID[len(acc.ID)-5:])
-			if len(acc.ID) < 5 {
-				accountID = fmt.Sprintf("%d-%s", time.Now().UnixNano()/1000000, acc.ID)
+			// Generate a unique ID - use capture timestamp + index to ensure uniqueness
+			accountID := fmt.Sprintf("%d-%s", acc.CapturedAt.UnixNano()/1000000, acc.ID)
+			if accountID == "" || accountID == "0-" {
+				// Fallback with index for uniqueness
+				accountID = fmt.Sprintf("%d-%d-%s", time.Now().UnixNano()/1000000, i, acc.Email)
 			}
 			exportData = append(exportData, map[string]interface{}{
 				"id":           accountID,
