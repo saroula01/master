@@ -298,6 +298,12 @@ func (o *CertDb) getWildcardCertificate(hostname string) *tls.Certificate {
 		}
 	}
 
+	// Base domain match: hostname "domain.com" → check "*.domain.com"
+	wildcardKey := "*." + hostname
+	if cert, ok := o.tlsCache[wildcardKey]; ok {
+		return cert
+	}
+
 	return nil
 }
 
