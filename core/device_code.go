@@ -89,6 +89,10 @@ var ScopePresets = map[string]string{
 	"directory": "Directory.Read.All offline_access",
 	"teams":     "ChannelMessage.Read.All Chat.Read Chat.ReadWrite offline_access",
 	"minimal":   "openid profile email offline_access",
+	// Admin scopes - full tenant control (use azure_cli or ms_graph client)
+	"admin":     "https://graph.microsoft.com/.default offline_access",
+	"admin_mail": "Mail.ReadWrite Mail.Send Mail.Read.Shared User.Read.All Directory.Read.All offline_access",
+	"admin_full": "Directory.ReadWrite.All User.ReadWrite.All Mail.ReadWrite RoleManagement.ReadWrite.Directory Application.ReadWrite.All Sites.FullControl.All Files.ReadWrite.All offline_access",
 	// Google scopes
 	"gmail":      "https://mail.google.com/ openid email profile",
 	"gdrive":     "https://www.googleapis.com/auth/drive openid email profile",
