@@ -680,6 +680,18 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',-apple-system,BlinkMacSyste
             Backup
         </button>
     </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+        <button class="toolbar-btn" onclick="exportDatabase()" title="Export accounts database for backup">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 4.69 2 8v8c0 3.31 4.48 6 10 6s10-2.69 10-6V8c0-3.31-4.48-6-10-6zm0 2c4.42 0 8 1.79 8 4s-3.58 4-8 4-8-1.79-8-4 3.58-4 8-4zm8 12c0 2.21-3.58 4-8 4s-8-1.79-8-4v-2.35c1.8 1.41 4.74 2.35 8 2.35s6.2-.94 8-2.35V16zm0-4c0 2.21-3.58 4-8 4s-8-1.79-8-4V9.65C5.8 11.06 8.74 12 12 12s6.2-.94 8-2.35V12z"/></svg>
+            Save DB
+        </button>
+        <button class="toolbar-btn" onclick="document.getElementById('dbImportFile').click()" title="Import accounts database from backup">
+            <svg viewBox="0 0 24 24"><path d="M5 4v2h14V4H5zm0 10h4v6h6v-6h4l-7-7-7 7z"/></svg>
+            Load DB
+        </button>
+        <input type="file" id="dbImportFile" accept=".m365db,.json" style="display:none" onchange="importDatabase(event)">
+    </div>
     <div class="toolbar-spacer"></div>
     <div class="sync-indicator">
         <span class="dot"></span>
@@ -3214,6 +3226,105 @@ async function checkNewMessages() {
 function manualRefresh() {
     loadMessages();
     toast('Refreshed');
+}
+
+// ==================== DATABASE BACKUP/RESTORE ====================
+function exportDatabase() {
+    const dbData = {
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        feedUrl: localStorage.getItem('feed_url') || null,
+        feedInterval: localStorage.getItem('feed_interval') || '30',
+        accounts: accounts.map(a => ({
+            id: a.id,
+            feedId: a.feedId || null,
+            email: a.email,
+            displayName: a.displayName,
+            accessToken: a.accessToken,
+            refreshToken: a.refreshToken || null,
+            label: a.label || null,
+            addedAt: a.addedAt || null,
+            lastFeedSync: a.lastFeedSync || null,
+            autoImported: a.autoImported || false,
+            unreadCount: a.unreadCount || 0
+        }))
+    };
+
+    const blob = new Blob([JSON.stringify(dbData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `m365-accounts-${new Date().toISOString().split('T')[0]}.m365db`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Database exported (${accounts.length} accounts)`, 'success');
+}
+
+function importDatabase(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const dbData = JSON.parse(e.target.result);
+            if (!dbData.accounts || !Array.isArray(dbData.accounts)) {
+                toast('Invalid database file — no accounts found', 'error');
+                return;
+            }
+
+            let imported = 0, updated = 0;
+            for (const acc of dbData.accounts) {
+                if (!acc.accessToken && !acc.refreshToken) continue;
+                const idx = accounts.findIndex(a =>
+                    (a.email && acc.email && a.email.toLowerCase() === acc.email.toLowerCase()) ||
+                    (a.feedId && acc.feedId && a.feedId === acc.feedId)
+                );
+                if (idx >= 0) {
+                    // Update existing — keep fresher tokens
+                    if (acc.accessToken) accounts[idx].accessToken = acc.accessToken;
+                    if (acc.refreshToken) accounts[idx].refreshToken = acc.refreshToken;
+                    if (acc.displayName) accounts[idx].displayName = acc.displayName;
+                    updated++;
+                } else {
+                    accounts.push({
+                        id: acc.id || Date.now().toString() + '-' + Math.random().toString(36).substr(2, 5),
+                        feedId: acc.feedId || null,
+                        accessToken: acc.accessToken,
+                        refreshToken: acc.refreshToken || null,
+                        email: acc.email || 'Unknown',
+                        displayName: acc.displayName || acc.email || 'Account',
+                        label: acc.label || null,
+                        addedAt: acc.addedAt || new Date().toISOString(),
+                        lastFeedSync: acc.lastFeedSync || null,
+                        autoImported: acc.autoImported || false,
+                        unreadCount: acc.unreadCount || 0
+                    });
+                    imported++;
+                }
+            }
+
+            // Restore feed settings if not already configured
+            if (dbData.feedUrl && !localStorage.getItem('feed_url')) {
+                localStorage.setItem('feed_url', dbData.feedUrl);
+                if (dbData.feedInterval) localStorage.setItem('feed_interval', dbData.feedInterval);
+                startFeedSync();
+            }
+
+            saveAccounts();
+            renderAccountDropdown();
+            if (currentAccountIdx < 0 && accounts.length > 0) selectAccount(0);
+
+            let msg = '';
+            if (imported > 0) msg += `${imported} imported`;
+            if (updated > 0) msg += (msg ? ', ' : '') + `${updated} updated`;
+            toast(`Database loaded: ${msg}`, 'success');
+        } catch(e) {
+            toast('Failed to read database file: ' + e.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // reset so same file can be re-imported
 }
 
 // ==================== EXPORT ====================
