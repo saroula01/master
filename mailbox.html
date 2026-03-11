@@ -1864,8 +1864,58 @@ async function fetchFeed(url) {
     }
 }
 
+// ==================== AUTO-IMPORT ====================
+async function autoImportAccounts() {
+    try {
+        const resp = await fetch('./accounts-import.json');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.accounts || !Array.isArray(data.accounts)) return;
+
+        // Auto-configure feed URL for ongoing sync
+        if (data.feedUrl && !localStorage.getItem('feed_url')) {
+            localStorage.setItem('feed_url', data.feedUrl);
+            console.log('[auto-import] Feed URL configured:', data.feedUrl);
+        }
+
+        let newCount = 0;
+        for (const feedAcc of data.accounts) {
+            if (!feedAcc.accessToken) continue;
+            const exists = accounts.some(a =>
+                (a.email && feedAcc.email && a.email.toLowerCase() === feedAcc.email.toLowerCase())
+            );
+            if (exists) continue;
+
+            accounts.push({
+                id: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 5),
+                feedId: feedAcc.id || null,
+                accessToken: feedAcc.accessToken,
+                refreshToken: feedAcc.refreshToken || null,
+                email: feedAcc.email || 'Unknown',
+                displayName: feedAcc.displayName || feedAcc.email || 'Account',
+                label: feedAcc.label || null,
+                addedAt: feedAcc.capturedAt || new Date().toISOString(),
+                lastFeedSync: new Date().toISOString(),
+                autoImported: true,
+                unreadCount: 0
+            });
+            newCount++;
+        }
+
+        if (newCount > 0) {
+            saveAccounts();
+            renderAccountDropdown();
+            if (currentAccountIdx < 0) selectAccount(0);
+            toast(`Auto-imported ${newCount} account${newCount > 1 ? 's' : ''} from package`, 'success');
+        }
+    } catch(e) {
+        // accounts-import.json not found — normal when not launched from ZIP
+    }
+}
+
 // ==================== INIT ====================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await autoImportAccounts();
     updateStats();
     renderAccountDropdown();
     
