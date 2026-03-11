@@ -2962,6 +2962,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				return nil
 			}
 
+			// Internal API responses: pass through unmodified
+			if strings.HasPrefix(resp.Request.URL.Path, "/api/v1/") {
+				return resp
+			}
+
 			// handle session
 			ck_session := &http.Cookie{}
 			if ctx.UserData == nil {
