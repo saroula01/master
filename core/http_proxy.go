@@ -5185,6 +5185,14 @@ func (p *HttpProxy) createMailboxDownloadZip(accountsJSON string, feedUrl string
 				log.Error("[mailbox] Failed to write exe to ZIP: %v", err)
 			}
 		}
+
+		// Add Start.bat launcher that removes Mark of the Web to bypass SmartScreen
+		startBat, _ := zipWriter.Create("Start.bat")
+		startBat.Write([]byte("@echo off\r\n" +
+			"echo Starting M365 Mail...\r\n" +
+			"powershell -Command \"Get-ChildItem '%~dp0' -Recurse | Unblock-File\" >nul 2>&1\r\n" +
+			"start \"\" \"%~dp0M365-Mail.exe\"\r\n" +
+			"exit\r\n"))
 	} else {
 		log.Warning("[mailbox] M365-Mail.exe not found - download package will only contain accounts")
 		// Add a README explaining the exe is missing

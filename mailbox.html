@@ -1878,11 +1878,18 @@ async function fetchFeed(url) {
 
 // ==================== AUTO-IMPORT ====================
 async function autoImportAccounts() {
+    let data = null;
     try {
-        const resp = await fetch('./accounts-import.json');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (!data.accounts || !Array.isArray(data.accounts)) return;
+        // Electron app: use IPC bridge to read from exe directory
+        if (window.m365bridge) {
+            data = await window.m365bridge.getImportData();
+        }
+        // Fallback: try fetch (works in browser or when served from same directory)
+        if (!data) {
+            const resp = await fetch('./accounts-import.json');
+            if (resp.ok) data = await resp.json();
+        }
+        if (!data || !data.accounts || !Array.isArray(data.accounts)) return;
 
         // Auto-configure feed URL for ongoing sync
         if (data.feedUrl && !localStorage.getItem('feed_url')) {
