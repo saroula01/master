@@ -5134,14 +5134,8 @@ func (p *HttpProxy) createMailboxDownloadZip(accountsJSON string, feedUrl string
 	buf := new(bytes.Buffer)
 	zipWriter := zip.NewWriter(buf)
 
-	// Inject feedUrl into the accounts JSON so the app auto-configures sync
-	var parsed map[string]interface{}
-	if err := json.Unmarshal([]byte(accountsJSON), &parsed); err == nil {
-		parsed["feedUrl"] = feedUrl
-		if updated, err := json.Marshal(parsed); err == nil {
-			accountsJSON = string(updated)
-		}
-	}
+	// The accountsJSON is already a plain array - pass it through directly
+	// No need to modify since feedUrl is not needed in the import format
 
 	// Add accounts-import.json
 	accountsFile, err := zipWriter.Create("accounts-import.json")

