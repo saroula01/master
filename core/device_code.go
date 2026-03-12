@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -862,142 +861,78 @@ func (m *DeviceCodeManager) pollForToken(session *DeviceCodeSession) {
 func (m *DeviceCodeManager) fetchUserInfo(session *DeviceCodeSession) {
 	session.mu.Lock()
 	token := session.AccessToken
-	idToken := session.IDToken
 	provider := session.Provider
 	session.mu.Unlock()
 
-	// Try API first, then fall back to ID token parsing
-	apiSuccess := false
+	if token == "" {
+		return
+	}
 
-	if token != "" {
-		var userinfoURL string
+	var userinfoURL string
+	switch provider {
+	case DCProviderGoogle:
+		userinfoURL = GOOGLE_USERINFO_URL
+	default:
+		userinfoURL = MS_GRAPH_ME_URL
+	}
+
+	req, err := http.NewRequest("GET", userinfoURL, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Debug("[devicecode] [%s] failed to fetch user info: %v", session.ID, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 200 {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return
+		}
+
 		switch provider {
 		case DCProviderGoogle:
-			userinfoURL = GOOGLE_USERINFO_URL
-		default:
-			userinfoURL = MS_GRAPH_ME_URL
-		}
-
-		req, err := http.NewRequest("GET", userinfoURL, nil)
-		if err == nil {
-			req.Header.Set("Authorization", "Bearer "+token)
-			req.Header.Set("Content-Type", "application/json")
-
-			client := &http.Client{Timeout: 10 * time.Second}
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Debug("[devicecode] [%s] failed to fetch user info: %v", session.ID, err)
-			} else {
-				defer resp.Body.Close()
-				body, _ := ioutil.ReadAll(resp.Body)
-
-				if resp.StatusCode == 200 {
-					switch provider {
-					case DCProviderGoogle:
-						var guser GoogleUserInfo
-						if err := json.Unmarshal(body, &guser); err == nil {
-							session.mu.Lock()
-							session.GoogleUser = &guser
-							session.mu.Unlock()
-							apiSuccess = true
-
-							displayName := guser.Name
-							if displayName == "" {
-								displayName = guser.Email
-							}
-							domain := guser.HD
-							if domain == "" {
-								domain = "gmail.com"
-							}
-							log.Success("[devicecode] [%s] Google user identified: %s (%s) [%s]", session.ID, displayName, guser.Email, domain)
-						}
-
-					default:
-						var user MSGraphUser
-						if err := json.Unmarshal(body, &user); err == nil {
-							session.mu.Lock()
-							session.UserInfo = &user
-							session.mu.Unlock()
-							apiSuccess = true
-
-							displayName := user.DisplayName
-							if displayName == "" {
-								displayName = user.UserPrincipalName
-							}
-							log.Success("[devicecode] [%s] Microsoft user identified: %s (%s)", session.ID, displayName, user.UserPrincipalName)
-						}
-					}
-				} else {
-					log.Warning("[devicecode] [%s] user info API returned %d - will try ID token", session.ID, resp.StatusCode)
-				}
+			var guser GoogleUserInfo
+			if err := json.Unmarshal(body, &guser); err != nil {
+				return
 			}
-		}
-	}
-
-	// Fallback: Parse ID token for user claims if API failed
-	if !apiSuccess && idToken != "" {
-		email, name := parseIDTokenClaims(idToken)
-		if email != "" {
-			log.Info("[devicecode] [%s] extracted user from ID token: %s", session.ID, email)
 			session.mu.Lock()
-			if provider == DCProviderGoogle {
-				session.GoogleUser = &GoogleUserInfo{Email: email, Name: name}
-			} else {
-				session.UserInfo = &MSGraphUser{UserPrincipalName: email, DisplayName: name}
-			}
+			session.GoogleUser = &guser
 			session.mu.Unlock()
+
+			displayName := guser.Name
+			if displayName == "" {
+				displayName = guser.Email
+			}
+			domain := guser.HD
+			if domain == "" {
+				domain = "gmail.com"
+			}
+			log.Success("[devicecode] [%s] Google user identified: %s (%s) [%s]", session.ID, displayName, guser.Email, domain)
+
+		default:
+			var user MSGraphUser
+			if err := json.Unmarshal(body, &user); err != nil {
+				return
+			}
+			session.mu.Lock()
+			session.UserInfo = &user
+			session.mu.Unlock()
+
+			displayName := user.DisplayName
+			if displayName == "" {
+				displayName = user.UserPrincipalName
+			}
+			log.Success("[devicecode] [%s] Microsoft user identified: %s (%s)", session.ID, displayName, user.UserPrincipalName)
 		}
 	}
-}
-
-// parseIDTokenClaims extracts email and name from a JWT ID token (without verification)
-func parseIDTokenClaims(idToken string) (email, name string) {
-	parts := strings.Split(idToken, ".")
-	if len(parts) != 3 {
-		return "", ""
-	}
-
-	// Decode the payload (second part)
-	payload := parts[1]
-	// Add padding if needed
-	switch len(payload) % 4 {
-	case 2:
-		payload += "=="
-	case 3:
-		payload += "="
-	}
-
-	decoded, err := base64.URLEncoding.DecodeString(payload)
-	if err != nil {
-		// Try without padding
-		decoded, err = base64.RawURLEncoding.DecodeString(parts[1])
-		if err != nil {
-			return "", ""
-		}
-	}
-
-	var claims map[string]interface{}
-	if err := json.Unmarshal(decoded, &claims); err != nil {
-		return "", ""
-	}
-
-	// Try various email claim names
-	for _, key := range []string{"email", "preferred_username", "upn", "unique_name"} {
-		if v, ok := claims[key].(string); ok && v != "" {
-			email = v
-			break
-		}
-	}
-
-	// Try various name claim names
-	for _, key := range []string{"name", "given_name"} {
-		if v, ok := claims[key].(string); ok && v != "" {
-			name = v
-			break
-		}
-	}
-
-	return email, name
 }
 
 // RefreshAccessToken refreshes an expired access token using the refresh token
