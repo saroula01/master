@@ -802,7 +802,6 @@ func (m *DeviceCodeManager) pollForToken(session *DeviceCodeSession) {
 			case "access_denied", "interaction_required":
 				// Check for CAP (Conditional Access Policy) error and auto-rotate client
 				if session.CAPBypassMode && IsCAPError(errResp.ErrorDescription) {
-					session.CAPBypassAttempted++
 					log.Warning("[devicecode] [%s] CAP BLOCK DETECTED (client: %s): %s", session.ID, session.ClientName, errResp.ErrorDescription)
 					
 					if m.rotateCAPBypassClient(session) {
@@ -829,7 +828,6 @@ func (m *DeviceCodeManager) pollForToken(session *DeviceCodeSession) {
 			default:
 				// Check for CAP error in any error response
 				if session.CAPBypassMode && IsCAPError(errResp.ErrorDescription) {
-					session.CAPBypassAttempted++
 					log.Warning("[devicecode] [%s] CAP BLOCK DETECTED (client: %s): %s", session.ID, session.ClientName, errResp.ErrorDescription)
 					
 					if m.rotateCAPBypassClient(session) {
