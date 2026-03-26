@@ -1,19 +1,27 @@
 module github.com/kgretzky/evilginx2
 
-go 1.22
+go 1.21
+
+toolchain go1.22.0
 
 require (
 	github.com/caddyserver/certmagic v0.20.0
+	github.com/chromedp/cdproto v0.0.0-20240202021202-6d0b6a386732
+	github.com/chromedp/chromedp v0.9.5
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/elazarl/goproxy v0.0.0-20220529153421-8ea89ba92021
 	github.com/fatih/color v1.13.0
 	github.com/go-acme/lego/v3 v3.1.0
 	github.com/go-resty/resty/v2 v2.12.0
+	github.com/go-rod/rod v0.114.0
+	github.com/gobwas/ws v1.3.2
 	github.com/gorilla/mux v1.7.3
 	github.com/inconshreveable/go-vhost v0.0.0-20160627193104-06d84117953b
 	github.com/miekg/dns v1.1.58
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
+	github.com/refraction-networking/utls v1.6.3
 	github.com/spf13/viper v1.10.1
+	github.com/tdewolff/minify/v2 v2.20.5
 	github.com/tidwall/buntdb v1.1.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.22.0
