@@ -164,7 +164,7 @@ func main() {
 	ns, _ := core.NewNameserver(cfg)
 	ns.Start()
 
-	crt_db, err := core.NewCertDb(crt_path, cfg, ns)
+	crt_db, err := core.NewCertDb(crt_path, cfg, ns, nil)
 	if err != nil {
 		log.Fatal("certdb: %v", err)
 		return
