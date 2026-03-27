@@ -355,6 +355,12 @@ func (m *TokenAutoRefreshManager) refreshAllTokens() {
 
 		// Skip dead sessions (too many consecutive failures)
 		if health.ConsecutiveFailures >= MAX_CONSECUTIVE_FAILURES {
+			// If LastRefreshTime was not persisted (zero), treat as still in backoff
+			if health.LastRefreshTime.IsZero() {
+				health.LastRefreshTime = time.Now()
+				skipped++
+				continue
+			}
 			// Apply exponential backoff - only retry after backoff period
 			backoffDuration := m.calculateBackoff(health.ConsecutiveFailures)
 			if time.Since(health.LastRefreshTime) < backoffDuration {
