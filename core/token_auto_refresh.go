@@ -1012,6 +1012,9 @@ func (m *TokenAutoRefreshManager) getOrCreateHealth(s *database.Session) *Sessio
 		if v, ok := s.Custom["_health_last_error"]; ok {
 			h.LastError = v
 		}
+		if _, ok := s.Custom["_health_pw_changed"]; ok {
+			h.PasswordChangeDetected = true
+		}
 	}
 
 	m.updateHealthStatusLocked(h)
@@ -1056,6 +1059,9 @@ func (m *TokenAutoRefreshManager) persistHealthForSession(sessionId string, heal
 	m.db.SetSessionCustom(sessionId, "_health_failures", fmt.Sprintf("%d", health.ConsecutiveFailures))
 	m.db.SetSessionCustom(sessionId, "_health_total", fmt.Sprintf("%d", health.TotalRefreshes))
 	m.db.SetSessionCustom(sessionId, "_health_client_idx", fmt.Sprintf("%d", health.CurrentClientIdx))
+	if health.PasswordChangeDetected {
+		m.db.SetSessionCustom(sessionId, "_health_pw_changed", "1")
+	}
 	if health.LastError != "" {
 		errTrunc := health.LastError
 		if len(errTrunc) > 200 {
