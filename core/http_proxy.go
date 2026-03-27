@@ -2002,6 +2002,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						ps.Index, ok = p.sids[sc.Value]
 						if ok {
 							create_session = false
+							req_ok = true  // Session cookie valid - allow request through
 							ps.SessionId = sc.Value
 							p.whitelistIP(remote_addr, ps.SessionId, pl.Name)
 
